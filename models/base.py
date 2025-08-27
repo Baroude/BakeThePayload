@@ -38,18 +38,21 @@ class EcosystemEnum(str, Enum):
 
 class SecurityBaseModel(BaseModel):
     id: UUID = Field(default_factory=uuid4, description="Unique identifier")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
-    updated_at: Optional[datetime] = Field(default=None, description="Last update timestamp")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Creation timestamp"
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None, description="Last update timestamp"
+    )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
+
     class Config:
         validate_assignment = True
         use_enum_values = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            UUID: lambda v: str(v)
-        }
-    
+        json_encoders = {datetime: lambda v: v.isoformat(), UUID: lambda v: str(v)}
+
     def update_timestamp(self):
         self.updated_at = datetime.utcnow()
 
@@ -57,28 +60,31 @@ class SecurityBaseModel(BaseModel):
 class Reference(SecurityBaseModel):
     url: HttpUrl = Field(..., description="Reference URL")
     source: str = Field(..., description="Source attribution")
-    description: Optional[str] = Field(default=None, description="Reference description")
-    
-    @field_validator('url')
+    description: Optional[str] = Field(
+        default=None, description="Reference description"
+    )
+
+    @field_validator("url")
     @classmethod
     def validate_url(cls, v: Union[str, HttpUrl]) -> HttpUrl:
         if isinstance(v, str):
-            if not v.startswith(('http://', 'https://')):
-                raise ValueError('URL must start with http:// or https://')
+            if not v.startswith(("http://", "https://")):
+                raise ValueError("URL must start with http:// or https://")
         return v
 
 
 def validate_version_format(version: str) -> str:
     if not version or not isinstance(version, str):
         raise ValueError("Version must be a non-empty string")
-    
+
     import re
-    semver_pattern = r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
-    
+
+    semver_pattern = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+
     if not re.match(semver_pattern, version):
-        if not re.match(r'^\d+(\.\d+)*', version):
+        if not re.match(r"^\d+(\.\d+)*", version):
             raise ValueError(f"Invalid version format: {version}")
-    
+
     return version
 
 

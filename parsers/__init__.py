@@ -1,42 +1,40 @@
-from .diff import (
-    UnifiedDiffParser, 
-    DiffHunk, 
-    SecurityPattern, 
-    SecurityMatch,
-    ChangeType,
-    SecurityPatternType
-)
 from .advisory import (
-    MultiFormatAdvisoryParser, 
     AdvisoryFormat,
+    AdvisoryParseError,
+    MultiFormatAdvisoryParser,
     ParsedAdvisory,
-    AdvisoryParseError
+)
+from .diff import (
+    ChangeType,
+    DiffHunk,
+    SecurityMatch,
+    SecurityPattern,
+    SecurityPatternType,
+    UnifiedDiffParser,
 )
 from .version import (
-    VersionExtractor, 
     VersionConstraint,
+    VersionConstraintType,
+    VersionExtractor,
     VersionRange,
-    VersionConstraintType
 )
 
 __all__ = [
     # Diff parsing
     "UnifiedDiffParser",
-    "DiffHunk", 
+    "DiffHunk",
     "SecurityPattern",
-    "SecurityMatch", 
+    "SecurityMatch",
     "ChangeType",
     "SecurityPatternType",
-    
     # Advisory parsing
     "MultiFormatAdvisoryParser",
     "AdvisoryFormat",
     "ParsedAdvisory",
     "AdvisoryParseError",
-    
     # Version parsing
     "VersionExtractor",
     "VersionConstraint",
     "VersionRange",
-    "VersionConstraintType"
+    "VersionConstraintType",
 ]

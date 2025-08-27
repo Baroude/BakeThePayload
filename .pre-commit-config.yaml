@@ -27,4 +27,5 @@ repos:
     rev: 1.7.5
     hooks:
       - id: bandit
-        args: ["-r", "models", "parsers"]
+        args: ["-f", "json", "--exclude", "tests/*,test_*.py"]
+        additional_dependencies: [pbr]

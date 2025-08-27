@@ -4,10 +4,10 @@ Sample data and examples for testing the parsers
 Run this file to see the parsers in action, or import the samples for your own tests
 """
 
-from parsers import UnifiedDiffParser, MultiFormatAdvisoryParser, VersionExtractor
-from models import EcosystemEnum
 import json
 
+from models import EcosystemEnum
+from parsers import MultiFormatAdvisoryParser, UnifiedDiffParser, VersionExtractor
 
 # Sample diff with security issues
 SAMPLE_DIFF = """--- a/src/auth/login.py
@@ -39,27 +39,24 @@ SAMPLE_GHSA = {
     "ghsa_id": "GHSA-xxxx-xxxx-xxxx",
     "summary": "SQL Injection vulnerability in authentication module",
     "details": "The authentication module is vulnerable to SQL injection attacks due to improper input validation. An attacker can bypass authentication by injecting malicious SQL code.",
-    "severity": "HIGH", 
+    "severity": "HIGH",
     "cvss": {
         "score": 8.1,
-        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"
+        "vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
     },
     "cwe_ids": [89, 20],
     "references": [
         {
             "url": "https://github.com/example/repo/security/advisories/GHSA-xxxx-xxxx-xxxx",
-            "source": "GHSA"
+            "source": "GHSA",
         },
-        {
-            "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-12345", 
-            "source": "NVD"
-        }
+        {"url": "https://nvd.nist.gov/vuln/detail/CVE-2024-12345", "source": "NVD"},
     ],
     "published": "2024-01-15T10:30:00Z",
     "identifiers": [
         {"type": "GHSA", "value": "GHSA-xxxx-xxxx-xxxx"},
-        {"type": "CVE", "value": "CVE-2024-12345"}
-    ]
+        {"type": "CVE", "value": "CVE-2024-12345"},
+    ],
 }
 
 # Sample OSV advisory
@@ -69,30 +66,24 @@ SAMPLE_OSV = {
     "summary": "Remote code execution in deserialization",
     "details": "Unsafe deserialization allows remote code execution when processing untrusted data.",
     "severity": [
-        {
-            "type": "CVSS_V3",
-            "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-        }
+        {"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
     ],
     "affected": [
         {
             "package": {"ecosystem": "PyPI", "name": "vulnerable-package"},
             "ranges": [
                 {
-                    "type": "ECOSYSTEM", 
-                    "events": [
-                        {"introduced": "1.0.0"},
-                        {"fixed": "1.2.5"}
-                    ]
+                    "type": "ECOSYSTEM",
+                    "events": [{"introduced": "1.0.0"}, {"fixed": "1.2.5"}],
                 }
-            ]
+            ],
         }
     ],
     "references": [
         {"type": "ADVISORY", "url": "https://example.com/advisory"},
-        {"type": "FIX", "url": "https://github.com/example/commit/abc123"}
+        {"type": "FIX", "url": "https://github.com/example/commit/abc123"},
     ],
-    "published": "2024-02-01T12:00:00Z"
+    "published": "2024-02-01T12:00:00Z",
 }
 
 # Sample NVD advisory
@@ -103,37 +94,31 @@ SAMPLE_NVD = {
             "description_data": [
                 {
                     "lang": "en",
-                    "value": "Buffer overflow in network parsing function allows remote code execution"
+                    "value": "Buffer overflow in network parsing function allows remote code execution",
                 }
             ]
         },
         "problemtype": {
-            "problemtype_data": [
-                {
-                    "description": [
-                        {"lang": "en", "value": "CWE-119"}
-                    ]
-                }
-            ]
+            "problemtype_data": [{"description": [{"lang": "en", "value": "CWE-119"}]}]
         },
         "references": {
             "reference_data": [
                 {
                     "url": "https://example.com/security-bulletin",
-                    "tags": ["Vendor Advisory"]
+                    "tags": ["Vendor Advisory"],
                 }
             ]
-        }
+        },
     },
     "impact": {
         "baseMetricV3": {
             "cvssV3": {
                 "baseScore": 9.8,
-                "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+                "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
             }
         }
     },
-    "publishedDate": "2024-03-01T08:00:00Z"
+    "publishedDate": "2024-03-01T08:00:00Z",
 }
 
 
@@ -142,24 +127,24 @@ def demo_diff_parser():
     print("=" * 50)
     print("DIFF PARSER DEMO")
     print("=" * 50)
-    
+
     parser = UnifiedDiffParser()
     result = parser.parse_and_analyze(SAMPLE_DIFF)
-    
+
     print(f"Summary:")
     print(f"  Files modified: {result['summary']['files_modified']}")
     print(f"  Total hunks: {result['summary']['total_hunks']}")
     print(f"  Security issues: {result['summary']['security_issues_found']}")
     print(f"  High confidence issues: {result['summary']['high_confidence_issues']}")
-    
+
     print(f"\nSecurity Issues Found:")
-    for i, match in enumerate(result['security_matches'], 1):
+    for i, match in enumerate(result["security_matches"], 1):
         print(f"  {i}. {match.pattern_type}")
         print(f"     Line {match.line_number}: {match.line_content[:60]}...")
         print(f"     {match.description} (confidence: {match.confidence})")
-    
+
     print(f"\nFile Changes:")
-    for hunk in result['hunks']:
+    for hunk in result["hunks"]:
         print(f"  {hunk.file_path}:")
         print(f"    Lines added: {len(hunk.added_lines)}")
         print(f"    Lines removed: {len(hunk.removed_lines)}")
@@ -170,16 +155,12 @@ def demo_advisory_parser():
     print("\n" + "=" * 50)
     print("ADVISORY PARSER DEMO")
     print("=" * 50)
-    
+
     parser = MultiFormatAdvisoryParser()
-    
+
     # Test different formats
-    formats = [
-        ("GHSA", SAMPLE_GHSA),
-        ("OSV", SAMPLE_OSV), 
-        ("NVD", SAMPLE_NVD)
-    ]
-    
+    formats = [("GHSA", SAMPLE_GHSA), ("OSV", SAMPLE_OSV), ("NVD", SAMPLE_NVD)]
+
     for format_name, sample_data in formats:
         print(f"\n--- {format_name} Format ---")
         try:
@@ -197,37 +178,39 @@ def demo_advisory_parser():
 
 def demo_version_extractor():
     """Demo the version extractor"""
-    print("\n" + "=" * 50) 
+    print("\n" + "=" * 50)
     print("VERSION EXTRACTOR DEMO")
     print("=" * 50)
-    
+
     extractor = VersionExtractor()
-    
+
     # Test different ecosystems and constraints
     test_cases = [
         ("NPM", "^1.2.3", ["1.2.3", "1.2.9", "1.9.0", "2.0.0"]),
         ("NPM", "~1.2.0", ["1.2.0", "1.2.9", "1.3.0", "2.0.0"]),
         ("PyPI", ">=1.0.0,<2.0.0", ["0.9.0", "1.0.0", "1.5.0", "2.0.0"]),
         ("Maven", "[1.0,2.0)", ["0.9", "1.0", "1.5", "2.0"]),
-        ("RubyGems", "~>2.1.0", ["2.0.9", "2.1.0", "2.1.5", "2.2.0"])
+        ("RubyGems", "~>2.1.0", ["2.0.9", "2.1.0", "2.1.5", "2.2.0"]),
     ]
-    
+
     for ecosystem_name, constraint_str, test_versions in test_cases:
         print(f"\n--- {ecosystem_name}: {constraint_str} ---")
-        
+
         # Map string to enum
-        ecosystem = getattr(EcosystemEnum, ecosystem_name.upper().replace("GEMS", "GEMS"))
-        
+        ecosystem = getattr(
+            EcosystemEnum, ecosystem_name.upper().replace("GEMS", "GEMS")
+        )
+
         try:
             version_range = extractor.create_version_range(constraint_str, ecosystem)
             print(f"Parsed constraints: {len(version_range.constraints)}")
-            
+
             print("Version satisfaction test:")
             for version in test_versions:
                 satisfies = version_range.satisfies(version)
                 status = "MATCH" if satisfies else "NO MATCH"
                 print(f"  {version:8} -> {status}")
-                
+
         except Exception as e:
             print(f"Error: {e}")
 
@@ -242,10 +225,10 @@ def interactive_test():
     print("2. Advisory Parser - paste JSON advisory")
     print("3. Version Parser - test version constraints")
     print("4. Exit")
-    
+
     while True:
         choice = input("\nSelect parser (1-4): ").strip()
-        
+
         if choice == "1":
             print("Paste your git diff (press Enter twice when done):")
             lines = []
@@ -257,12 +240,12 @@ def interactive_test():
                 else:
                     empty_count = 0
                 lines.append(line)
-            
+
             diff_content = "\n".join(lines)
             parser = UnifiedDiffParser()
             result = parser.parse_and_analyze(diff_content)
             print(f"Found {result['summary']['security_issues_found']} security issues")
-            
+
         elif choice == "2":
             print("Paste your JSON advisory:")
             json_str = input()
@@ -273,21 +256,23 @@ def interactive_test():
                 print(f"Parsed: {vuln.advisory_id} - {vuln.severity}")
             except Exception as e:
                 print(f"Error: {e}")
-                
+
         elif choice == "3":
             constraint = input("Enter version constraint: ")
             ecosystem_name = input("Enter ecosystem (npm/pypi/maven/etc): ")
             version_to_test = input("Enter version to test: ")
-            
+
             try:
                 ecosystem = getattr(EcosystemEnum, ecosystem_name.upper())
                 extractor = VersionExtractor()
                 version_range = extractor.create_version_range(constraint, ecosystem)
                 satisfies = version_range.satisfies(version_to_test)
-                print(f"Result: {version_to_test} {'MATCHES' if satisfies else 'does NOT match'} {constraint}")
+                print(
+                    f"Result: {version_to_test} {'MATCHES' if satisfies else 'does NOT match'} {constraint}"
+                )
             except Exception as e:
                 print(f"Error: {e}")
-                
+
         elif choice == "4":
             break
         else:
@@ -298,10 +283,10 @@ if __name__ == "__main__":
     print("VULNERABILITY ANALYZER - PARSER TESTING")
     print("Run the demos to see parsers in action")
     print("Or call interactive_test() for hands-on testing")
-    
+
     demo_diff_parser()
-    demo_advisory_parser() 
+    demo_advisory_parser()
     demo_version_extractor()
-    
+
     # Uncomment to enable interactive testing
     # interactive_test()
