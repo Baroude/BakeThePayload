@@ -1,0 +1,24 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(uv init:*)",
+      "Bash(uv venv:*)",
+      "Bash(.venvScriptsactivate)",
+      "Bash(.venv\\Scripts\\activate)",
+      "Bash(uv add:*)",
+      "Bash(uv run:*)",
+      "Bash(cat:*)",
+      "Bash(uv:*)",
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(pre-commit run:*)",
+      "Bash(sed:*)",
+      "Bash(mkdir:*)",
+      "Bash(python test_github_advisory.py:*)",
+      "Bash(python:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
