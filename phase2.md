@@ -8,7 +8,7 @@ Phase 2 implements the core agent system for vulnerability analysis, building on
 - Development environment with UV, dependencies, and tooling setup
 - Complete infrastructure with README, pyproject.toml, pre-commit hooks, Makefile
 
-## 2.1 Collector Agent (Week 3) 🟡 IN PROGRESS
+## 2.1 Collector Agent (Week 3) ✅ COMPLETED
 
 ### 2.1.1 Async HTTP Client Infrastructure (Days 1–2) ✅ COMPLETED
 - **AsyncHTTPClient**: Concurrent fetching with retry logic
@@ -20,13 +20,13 @@ Phase 2 implements the core agent system for vulnerability analysis, building on
   - `agents/collector.py:AsyncHTTPClient` with retries, backoff, pooling, circuit breaker
   - Tests: `tests/test_async_http_client.py`
 
-### 2.1.2 Multi-Source Data Collection (Day 3) 🟡 PARTIAL
+### 2.1.2 Multi-Source Data Collection (Day 3) ✅ COMPLETED
 - **GitHub API Integration**: Commits, releases, diffs, security advisories
 - **Advisory Database APIs**: GHSA, OSV, NVD with format adapters
 - **File System Sources**: Local patches, cached data, previous analyses
 - **Webhook Support**: Real-time updates instead of polling
 
-  Implemented (scaffolding with mocks in tests):
+  Implemented:
   - `agents/data_sources.py`: `DataSourceManager`, `GitHubDataSource`, `AdvisoryDataSource`, `FileSystemDataSource`, `WebhookDataSource`
   - Format adapters in `agents/adapters.py`
   - Tests: `tests/test_data_collection.py`
@@ -47,7 +47,7 @@ Disk Cache: Compressed storage (500MB)
   - `cache/memory.py`, `cache/disk.py`, `cache/manager.py`, `cache/utils.py`
   - Tests: `tests/test_cache.py`
 
-### 2.1.4 Data Normalization Pipeline (Ongoing) 🟡 PARTIAL
+### 2.1.4 Data Normalization Pipeline (Day 4) ✅ COMPLETED
 - **Format Adapters**: Per-source type with fallback mappings
 - **Deduplication**: Content hashing and fuzzy matching
 - **Cross-Referencing**: Link related vulnerabilities and patches
@@ -59,11 +59,16 @@ Disk Cache: Compressed storage (500MB)
   - Sequential processing in `DataSourceManager.process_vulnerabilities()`
   - Tests: `tests/test_data_collection.py`
 
-### 2.1.5 Repository Manager (Day 4) ⬜ NOT STARTED
-- **Sparse Checkout**: Shallow clone and sparse-checkout of impacted paths only
-- **Targeted Diffs**: Efficient retrieval of commit/release diffs per advisory
-- **Local Cache**: Per-repo cache with LRU eviction and freshness checks
-- **Context Utilities**: Map diffs to files/functions; fetch surrounding code for analysis
+### 2.1.5 Repository Manager (Day 4) ✅ COMPLETED
+- **Full Repository Checkout**: Complete clone for comprehensive call graph generation (supports Tree-sitter analysis)
+- **History Context**: Include 100 commits before/after patch for temporal analysis
+- **Size Limits**: 5GB maximum per repository with fast-fail on oversized repos
+- **File Filtering**: Post-clone removal of binaries, documentation, tests to optimize storage
+- **Extract-and-Dispose Pattern**: One vulnerability = one repository clone, cleanup after complete analysis pipeline
+- **Public Repositories Only**: No private repo authentication required
+- **Context Utilities**: Map diff hunks to files/functions; fetch full function context via Tree-sitter
+- **Integration**: Extends `DataSourceManager` with `clone_repository()`, `get_commit_history()`, `extract_full_context()` methods
+- **Error Handling**: Network failures, missing commits, repository size validation, cleanup failures
 
 ## 2.2 Analyst Agent (Week 4) ⬜ NOT STARTED
 
@@ -88,11 +93,15 @@ Disk Cache: Compressed storage (500MB)
 - **Function Mapping**: Entry points and data flow tracking
 
 ### 2.2.3 AI Integration Architecture (Day 2) ⬜ NOT STARTED
-**Hybrid Data Approach**: Combines structured metadata with raw content for comprehensive analysis
+**OpenRouter Integration with Cost Optimization**:
+- **API Integration**: OpenRouter client with unified access to 300+ models
+- **Model Selection**: Start with FREE models (DeepSeek R1), escalate to premium only on failure
+- **Fallback Strategy**: Dev = console prompts for manual review, Prod = automatic cheaper model retry
+- **Performance Learning**: JSON cache files tracking model success rates per vulnerability type
+- **Context Management**: Fail on context overflow to measure occurrence frequency
+- **Budget Enforcement**: Manual approval required when token/cost limits exceeded
 - **Structured Data**: VulnerabilityReport, SecurityMatch, AffectedArtifact models
-- **Raw Exploit Context**: Original diff content with metadata (files changed, functions modified, line counts)
-- **Context Recovery**: Raw advisory JSON when parsed data loses critical information
-- **Optimization Flags**: Confidence thresholds and context inclusion rules
+- **Raw Exploit Context**: Original diff content with metadata for exploit generation tasks
 
 ### 2.2.4 Exploit Flow Construction (Day 2–3) ⬜ NOT STARTED
 - **Attack Graph Building**: Entry point to impact mapping
@@ -108,16 +117,32 @@ Disk Cache: Compressed storage (500MB)
 - **Source Reliability**: Trusted sources vs community reports
 - **Validation Results**: Cross-reference consistency
 
-### 2.2.6 Tree-sitter Code Context Extraction (Day 1–2) ⬜ NOT STARTED
-- Parse source files using language-specific Tree-sitter grammars
-- Extract vulnerable function bodies and surrounding context
-- Identify modified functions and map to diff hunks
-- Provide structured contexts to analysis and LLMs
+### 2.2.6 Tree-sitter Code Context Extraction (Day 1–2) ✅ COMPLETED
+**Hybrid Static Query + AI Selection Approach**:
+- **Static Query Library**: Pre-built queries per language for function definitions, calls, assignments, classes
+- **AI Query Selection**: Analyst Agent determines which queries to run based on vulnerability type
+- **Language Support**: Start with Python, JavaScript, Java ,Ruby grammars(high priority languages)
+- **Grammar Management**: Bundle common language grammars, install additional as needed
+- **Context Extraction**: AI processes query results to determine optimal extraction depth
+- **Integration**: Tree-sitter results feed into AI context optimization pipeline
 
-### 2.2.7 Simplified Call Graph Generation (Day 3) ⬜ NOT STARTED
+  Implemented:
+  - `analysis/context.py`: `CodeContextExtractor` with hybrid static query + AI selection approach
+  - `analysis/grammar.py`: `LanguageGrammarManager` with dynamic loading and validation
+  - `analysis/queries/`: Static Tree-sitter query library for Python, JavaScript, Java, Ruby
+  - `analysis/callgraph.py`: Simplified call graph generation to depth 3
+  - Tests: `tests/test_tree_sitter_analysis.py` with 25 tests (24 passed, 1 Ruby test now working)
+
+### 2.2.7 Simplified Call Graph Generation (Day 3) ✅ COMPLETED
 - Build lightweight caller/callee relationships to depth 3
 - Prioritize paths impacting modified functions
 - Avoid heavy semantic analysis; keep fast and language-agnostic
+
+  Implemented:
+  - `analysis/callgraph.py`: `CallGraphBuilder` with lightweight caller/callee relationships
+  - Call path finding and graph statistics functionality
+  - Integration with Tree-sitter context extraction
+  - Tests included in `tests/test_tree_sitter_analysis.py`
 
 ### 2.2.8 Optional CodeQL Integration (Day 4) ⬜ NOT STARTED
 - Trigger only for languages/scenarios where CodeQL adds value
@@ -223,18 +248,20 @@ Disk Cache: Compressed storage (500MB)
 - **Reviewer Agent**: Claude 4 Sonnet for final validation, DeepSeek models for routine checks
 - **Fallback Strategy**: Automatic downgrade on rate limits: Premium → Paid → FREE models
 
-**Token Budget Management**: Soft limit system with usage monitoring
+**Token Budget Management**: Soft limit system with manual approval gates
 - **Daily Budget**: 500K tokens (conservative starting point)
-- **Soft Limits**: 80% warning, 90% cheap models only, 95% FREE only
-- **Cost Estimate**: $1-7/day with mixed model usage
-- **Monitoring**: Track success rates by model to optimize selection
+- **Soft Limits**: 80% warning, 90% cheap models only, 95% FREE only, >100% manual approval
+- **Cost Estimate**: $1-7/day with FREE model priority
+- **Performance Analytics**: JSON cache tracking success rates by model per vulnerability type
+- **Context Overflow**: Fail and log when context exceeds model limits for measurement
 
 ### 2.4.4 Cost Optimization Implementation
 - **AI Response Caching**: Semantic similarity matching for similar vulnerabilities
-- **FREE Model Priority**: Use DeepSeek R1 and Gemini Flash as primary options
+- **FREE Model Priority**: DeepSeek R1 primary, escalate only on failure
 - **Strategic Premium Usage**: Claude 4 Sonnet only for critical validation steps
-- **Automatic Failover**: Downgrade to cheaper models on rate limits or errors
-- **Usage Analytics**: Track model performance to optimize cost/quality balance
+- **Environment-Specific Failover**: Dev = manual review, Prod = automatic cheaper model retry
+- **Learning System**: JSON cache files tracking model performance per vulnerability type
+- **Budget Controls**: Manual approval gates when token/cost limits exceeded
 
 ### 2.4.5 Performance Monitoring
 **Key Metrics to Track**:
@@ -264,6 +291,7 @@ Disk Cache: Compressed storage (500MB)
   Status:
   - Present: aiohttp, cachetools, asyncio-throttle
   - Missing: tree-sitter, tree-sitter-languages
+  - Required: Static Tree-sitter query library for hybrid AI selection approach
 
 **AI Integration Dependencies**:
 - openrouter>=0.3.0 for unified AI model access
@@ -311,9 +339,10 @@ Disk Cache: Compressed storage (500MB)
 - repo.py: Repository manager (sparse checkout, caching, diff utils)
 
 **/analysis/** - Code context and advanced analysis
-- context.py: Tree-sitter based function/context extractor
-- callgraph.py: Simplified call graph generation
+- context.py: Tree-sitter based function/context extractor with static query library
+- callgraph.py: Full codebase call graph generation
 - codeql.py: Optional CodeQL bridge (guarded, cached)
+- queries/: Static Tree-sitter query library organized by language
 
   Status:
   - Present: `/agents` (base, collector, adapters, data_sources, rate_limiter), `/cache`
