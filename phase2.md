@@ -1,28 +1,37 @@
 # Phase 2: Agent Implementation Plan
 
 ## Overview
-Phase 2 implements the core agent system for vulnerability analysis, building on the foundation from Phase 1. This phase creates the Collector, Analyst, and Reviewer agents with comprehensive caching and validation. Duration: 3 weeks.
+Phase 2 implements the core agent system for vulnerability analysis, building on the foundation from Phase 1. This phase creates the Collector, Analyst, and Reviewer agents with comprehensive caching and validation, adds Tree-sitter based code context extraction with optional CodeQL, introduces a Repository Manager (sparse checkout), and scaffolds an Iterative Developer loop. Duration: 3 weeks (Week 3–5).
 
 ## Prerequisites ✅
 - Phase 1 Foundation completed with 12 Pydantic models, 3 parsers, and 70 tests (97% pass rate)
 - Development environment with UV, dependencies, and tooling setup
 - Complete infrastructure with README, pyproject.toml, pre-commit hooks, Makefile
 
-## 2.1 Collector Agent (Week 2, Days 1-3)
+## 2.1 Collector Agent (Week 3) 🟡 IN PROGRESS
 
-### 2.1.1 Async HTTP Client Infrastructure
+### 2.1.1 Async HTTP Client Infrastructure (Days 1–2) ✅ COMPLETED
 - **AsyncHTTPClient**: Concurrent fetching with retry logic
 - **Rate Limiting**: Exponential backoff for API quotas (GitHub, NVD)
 - **Connection Pooling**: Efficient resource management
 - **Error Handling**: Circuit breakers and graceful degradation
 
-### 2.1.2 Multi-Source Data Collection
+  Implemented:
+  - `agents/collector.py:AsyncHTTPClient` with retries, backoff, pooling, circuit breaker
+  - Tests: `tests/test_async_http_client.py`
+
+### 2.1.2 Multi-Source Data Collection (Day 3) 🟡 PARTIAL
 - **GitHub API Integration**: Commits, releases, diffs, security advisories
 - **Advisory Database APIs**: GHSA, OSV, NVD with format adapters
 - **File System Sources**: Local patches, cached data, previous analyses
 - **Webhook Support**: Real-time updates instead of polling
 
-### 2.1.3 AI Response Caching
+  Implemented (scaffolding with mocks in tests):
+  - `agents/data_sources.py`: `DataSourceManager`, `GitHubDataSource`, `AdvisoryDataSource`, `FileSystemDataSource`, `WebhookDataSource`
+  - Format adapters in `agents/adapters.py`
+  - Tests: `tests/test_data_collection.py`
+
+### 2.1.3 AI Response Caching (Day 5) ✅ COMPLETED
 ```
 Memory Cache: In-memory LRU (50MB)
 ├── AI model responses (24hr TTL)
@@ -34,15 +43,31 @@ Disk Cache: Compressed storage (500MB)
 └── Model failure logs (7 days)
 ```
 
-### 2.1.4 Data Normalization Pipeline
+  Implemented:
+  - `cache/memory.py`, `cache/disk.py`, `cache/manager.py`, `cache/utils.py`
+  - Tests: `tests/test_cache.py`
+
+### 2.1.4 Data Normalization Pipeline (Ongoing) 🟡 PARTIAL
 - **Format Adapters**: Per-source type with fallback mappings
 - **Deduplication**: Content hashing and fuzzy matching
 - **Cross-Referencing**: Link related vulnerabilities and patches
 - **Sequential Processing**: One vulnerability at a time for reliability
 
-## 2.2 Analyst Agent (Week 2, Days 4-5, Week 3, Days 1-2)
+  Implemented:
+  - Adapters: `agents/adapters.py`
+  - Deduplication utilities: `agents/deduplication.py`
+  - Sequential processing in `DataSourceManager.process_vulnerabilities()`
+  - Tests: `tests/test_data_collection.py`
 
-### 2.2.1 Security Pattern Library
+### 2.1.5 Repository Manager (Day 4) ⬜ NOT STARTED
+- **Sparse Checkout**: Shallow clone and sparse-checkout of impacted paths only
+- **Targeted Diffs**: Efficient retrieval of commit/release diffs per advisory
+- **Local Cache**: Per-repo cache with LRU eviction and freshness checks
+- **Context Utilities**: Map diffs to files/functions; fetch surrounding code for analysis
+
+## 2.2 Analyst Agent (Week 4) ⬜ NOT STARTED
+
+### 2.2.1 Security Pattern Library (Day 1) 🟡 PARTIAL
 - **Auth Bypass Patterns**: Missing/modified authentication checks
 - **Deserialization Vulnerabilities**: Unsafe object construction patterns
 - **Injection Points**: String concatenation in queries, commands
@@ -52,34 +77,54 @@ Disk Cache: Compressed storage (500MB)
 - **Path Traversal**: Directory traversal and file access patterns
 - **Race Conditions**: Thread safety and synchronization issues
 
-### 2.2.2 Static Analysis Engine
+  Implemented (Phase 1 diff patterns):
+  - `parsers/diff.py` security pattern detection (10+ patterns)
+  - Tests: `tests/test_parsers.py`
+
+### 2.2.2 Static Analysis Engine (Day 1) ⬜ NOT STARTED
 - **AST-Based Analysis**: Code structure and flow analysis
 - **Regex Pattern Matching**: Common vulnerability signatures
 - **Context-Aware Scoring**: Change impact assessment
 - **Function Mapping**: Entry points and data flow tracking
 
-### 2.2.3 AI Integration Architecture
+### 2.2.3 AI Integration Architecture (Day 2) ⬜ NOT STARTED
 **Hybrid Data Approach**: Combines structured metadata with raw content for comprehensive analysis
 - **Structured Data**: VulnerabilityReport, SecurityMatch, AffectedArtifact models
 - **Raw Exploit Context**: Original diff content with metadata (files changed, functions modified, line counts)
 - **Context Recovery**: Raw advisory JSON when parsed data loses critical information
 - **Optimization Flags**: Confidence thresholds and context inclusion rules
 
-### 2.2.4 Exploit Flow Construction
+### 2.2.4 Exploit Flow Construction (Day 2–3) ⬜ NOT STARTED
 - **Attack Graph Building**: Entry point to impact mapping
 - **Step Sequencing**: Logical attack progression
 - **Precondition Chains**: Required conditions for exploitation
 - **Probability Calculation**: Reachability and success likelihood
 - **Impact Assessment**: CIA triad analysis with scope evaluation
 
-### 2.2.5 Confidence Scoring System
+### 2.2.5 Confidence Scoring System (Day 5) ⬜ NOT STARTED
 - **Evidence Strength**: Explicit vs implied vulnerability indicators
 - **Advisory Clarity**: Detailed vs vague descriptions
 - **Patch Complexity**: Single line vs multi-file changes
 - **Source Reliability**: Trusted sources vs community reports
 - **Validation Results**: Cross-reference consistency
 
-## 2.3 Reviewer Agent (Week 3, Days 3-5)
+### 2.2.6 Tree-sitter Code Context Extraction (Day 1–2) ⬜ NOT STARTED
+- Parse source files using language-specific Tree-sitter grammars
+- Extract vulnerable function bodies and surrounding context
+- Identify modified functions and map to diff hunks
+- Provide structured contexts to analysis and LLMs
+
+### 2.2.7 Simplified Call Graph Generation (Day 3) ⬜ NOT STARTED
+- Build lightweight caller/callee relationships to depth 3
+- Prioritize paths impacting modified functions
+- Avoid heavy semantic analysis; keep fast and language-agnostic
+
+### 2.2.8 Optional CodeQL Integration (Day 4) ⬜ NOT STARTED
+- Trigger only for languages/scenarios where CodeQL adds value
+- Use existing packs (e.g., SQLi, XSS) for deeper taint/flow checks
+- Guarded, opt-in path with strict timeouts and caching
+
+## 2.3 Reviewer Agent (Week 5) ⬜ NOT STARTED
 
 ### 2.3.1 Validation Framework
 - **Schema Validation**: All models conform to Pydantic schemas
@@ -106,7 +151,13 @@ Disk Cache: Compressed storage (500MB)
 - **Improvement Suggestions**: Identify pattern library gaps
 - **Performance Tracking**: Success rates and processing times
 
-## 2.4 Advanced Features (Week 3 Integration)
+### 2.3.5 Iterative Developer Integration (Week 5, Days 3–5)
+- Scaffold exploit generation loop (structure only; safe placeholders)
+- Add Docker-based sandbox with 30–60s timeouts
+- Implement failure analysis and targeted refinement strategies
+- Optional human-in-the-loop checkpoints for low-confidence cases
+
+## 2.4 Advanced Features (Week 3 Integration) ⬜ NOT STARTED
 
 ### 2.4.1 Context Optimization Strategy
 **Smart Context Selection**: Dynamic context optimization based on task complexity and confidence levels
@@ -202,24 +253,39 @@ Disk Cache: Compressed storage (500MB)
 
 ## 2.5 Infrastructure Requirements
 
-### 2.5.1 Dependencies Addition
+### 2.5.1 Dependencies Addition 🟡 PARTIAL
 **Core Dependencies**:
 - aiohttp>=3.9.0 for async HTTP client functionality
 - cachetools>=5.3.0 for in-memory LRU caching
 - asyncio-throttle>=1.0.0 for rate limiting
+- tree-sitter (py-tree-sitter) for multi-language code parsing
+- tree-sitter-languages (or compiled grammars) for language support
+
+  Status:
+  - Present: aiohttp, cachetools, asyncio-throttle
+  - Missing: tree-sitter, tree-sitter-languages
 
 **AI Integration Dependencies**:
 - openrouter>=0.3.0 for unified AI model access
 - tiktoken>=0.5.0 for token counting and estimation
 - httpx>=0.25.0 for async HTTP requests to OpenRouter
 
+  Status:
+  - Missing: openrouter, tiktoken, httpx
+
 **Development and Monitoring Dependencies**:
 - aioresponses>=0.7.0 for async testing
 - pytest-asyncio>=0.23.0 for async test support
 - pytest-mock>=3.12.0 for mocking capabilities
 - prometheus-client>=0.19.0 for metrics collection
+- docker (host) for sandboxed exploit testing
+- codeql CLI (optional) for targeted deep analysis
 
-### 2.5.2 Project Structure Extension
+  Status:
+  - Present: aioresponses, pytest-asyncio, pytest-mock
+  - Missing: prometheus-client, docker, codeql
+
+### 2.5.2 Project Structure Extension 🟡 PARTIAL
 **New Module Organization**:
 
 **/agents/** - Core agent implementations
@@ -242,6 +308,16 @@ Disk Cache: Compressed storage (500MB)
 - github.py: GitHub API client with rate limiting
 - advisory.py: Advisory database integrations
 - openrouter.py: OpenRouter API client with model selection and failover
+- repo.py: Repository manager (sparse checkout, caching, diff utils)
+
+**/analysis/** - Code context and advanced analysis
+- context.py: Tree-sitter based function/context extractor
+- callgraph.py: Simplified call graph generation
+- codeql.py: Optional CodeQL bridge (guarded, cached)
+
+  Status:
+  - Present: `/agents` (base, collector, adapters, data_sources, rate_limiter), `/cache`
+  - Missing: `/analysis` package, `/patterns` package, `/integration/repo.py`, analyst/reviewer agent modules
 
 ### 2.5.3 Configuration Management
 - **Environment Variables**: API keys, cache settings, model endpoints
@@ -253,13 +329,16 @@ Disk Cache: Compressed storage (500MB)
 
 ### Functional Requirements
 - [ ] Collector agent handles 95%+ of advisory formats without errors
+- [ ] Repo manager supports sparse checkout and targeted diff retrieval
 - [ ] Cache hit ratios exceed 60% across all layers
 - [ ] Analyst agent identifies security patterns with 85%+ accuracy
 - [ ] Reviewer agent catches 90%+ of logical inconsistencies
-- [ ] Average processing time under 2 minutes per vulnerability
+- [ ] Average processing time: <30s without CodeQL, <2min with CodeQL
 
 ### Performance Requirements
 - [ ] Sequential processing of 1 vulnerability at a time
+- [ ] Tree-sitter parse success rate ≥95% on supported languages
+- [ ] Simplified call graph generation <10s (depth 3)
 - [ ] Token budget compliance with <80% soft limit usage
 - [ ] Memory usage under 2GB peak for single vulnerability
 - [ ] AI response cache hit ratio >50% for similar patterns
@@ -270,6 +349,7 @@ Disk Cache: Compressed storage (500MB)
 - [ ] FREE models achieve >70% success rate for routine tasks
 - [ ] Pattern library covers top 20 vulnerability types
 - [ ] Validation rules prevent 95%+ of inconsistent outputs
+- [ ] CodeQL used in <10% of analyses (only when needed)
 - [ ] Cost per vulnerability analysis under $0.70
 
 ### Integration Requirements
@@ -277,6 +357,7 @@ Disk Cache: Compressed storage (500MB)
 - [ ] Structured data flows validate against Phase 1 models
 - [ ] External API integrations handle failures gracefully
 - [ ] AI response caching works consistently
+- [ ] Tree-sitter context included in Analyst → Reviewer handoff
 - [ ] OpenRouter failover mechanisms work reliably across models
 
 This Phase 2 implementation provides the core intelligence layer for automated vulnerability analysis, building on Phase 1's solid foundation while preparing for Phase 3's code generation capabilities.
