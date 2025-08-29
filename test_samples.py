@@ -5,6 +5,7 @@ Run this file to see the parsers in action, or import the samples for your own t
 """
 
 import json
+from typing import Any, Dict, List, Union, cast
 
 from models import EcosystemEnum
 from parsers import MultiFormatAdvisoryParser, UnifiedDiffParser, VersionExtractor
@@ -15,21 +16,21 @@ SAMPLE_DIFF = """--- a/src/auth/login.py
 @@ -12,8 +12,7 @@ def authenticate_user(username, password):
      if not username or not password:
          return {"error": "Missing credentials"}
-     
+
 -    # Validate and sanitize input
 -    if not validate_input(username) or not sanitize_input(password):
 -        return {"error": "Invalid input format"}
 +    # TODO: Add validation later
-     
+
      # Check user credentials
 @@ -25,7 +24,7 @@ def authenticate_user(username, password):
-     
+
      # Build SQL query
 -    query = "SELECT * FROM users WHERE username = ? AND password_hash = ?"
 -    result = db.execute(query, (username, hash_password(password)))
 +    query = f"SELECT * FROM users WHERE username = '{username}' AND password_hash = '{password}'"
 +    result = db.execute(query)
-     
+
      if result:
          return {"success": True, "user_id": result[0]["id"]}
 """
@@ -122,7 +123,7 @@ SAMPLE_NVD = {
 }
 
 
-def demo_diff_parser():
+def demo_diff_parser() -> None:
     """Demo the unified diff parser"""
     print("=" * 50)
     print("DIFF PARSER DEMO")
@@ -132,25 +133,31 @@ def demo_diff_parser():
     result = parser.parse_and_analyze(SAMPLE_DIFF)
 
     print(f"Summary:")
-    print(f"  Files modified: {result['summary']['files_modified']}")
-    print(f"  Total hunks: {result['summary']['total_hunks']}")
-    print(f"  Security issues: {result['summary']['security_issues_found']}")
-    print(f"  High confidence issues: {result['summary']['high_confidence_issues']}")
+    summary = cast(Dict[str, int], result["summary"])
+    print(f"  Files modified: {summary['files_modified']}")
+    print(f"  Total hunks: {summary['total_hunks']}")
+    print(f"  Security issues: {summary['security_issues_found']}")
+    print(f"  High confidence issues: {summary['high_confidence_issues']}")
 
     print(f"\nSecurity Issues Found:")
-    for i, match in enumerate(result["security_matches"], 1):
+    from parsers import SecurityMatch  # ensure type available for casts
+
+    security_matches = cast(List[SecurityMatch], result["security_matches"])
+    for i, match in enumerate(security_matches, 1):
         print(f"  {i}. {match.pattern_type}")
         print(f"     Line {match.line_number}: {match.line_content[:60]}...")
         print(f"     {match.description} (confidence: {match.confidence})")
 
     print(f"\nFile Changes:")
-    for hunk in result["hunks"]:
+    from parsers import DiffHunk  # ensure type available for casts
+
+    for hunk in cast(List[DiffHunk], result["hunks"]):
         print(f"  {hunk.file_path}:")
         print(f"    Lines added: {len(hunk.added_lines)}")
         print(f"    Lines removed: {len(hunk.removed_lines)}")
 
 
-def demo_advisory_parser():
+def demo_advisory_parser() -> None:
     """Demo the advisory parser"""
     print("\n" + "=" * 50)
     print("ADVISORY PARSER DEMO")
@@ -159,7 +166,11 @@ def demo_advisory_parser():
     parser = MultiFormatAdvisoryParser()
 
     # Test different formats
-    formats = [("GHSA", SAMPLE_GHSA), ("OSV", SAMPLE_OSV), ("NVD", SAMPLE_NVD)]
+    formats: List[tuple[str, Dict[str, Any]]] = [
+        ("GHSA", SAMPLE_GHSA),
+        ("OSV", SAMPLE_OSV),
+        ("NVD", SAMPLE_NVD),
+    ]
 
     for format_name, sample_data in formats:
         print(f"\n--- {format_name} Format ---")
@@ -176,7 +187,7 @@ def demo_advisory_parser():
             print(f"Error parsing {format_name}: {e}")
 
 
-def demo_version_extractor():
+def demo_version_extractor() -> None:
     """Demo the version extractor"""
     print("\n" + "=" * 50)
     print("VERSION EXTRACTOR DEMO")
@@ -215,7 +226,7 @@ def demo_version_extractor():
             print(f"Error: {e}")
 
 
-def interactive_test():
+def interactive_test() -> None:
     """Interactive testing function"""
     print("\n" + "=" * 50)
     print("INTERACTIVE TESTING")
@@ -242,17 +253,18 @@ def interactive_test():
                 lines.append(line)
 
             diff_content = "\n".join(lines)
-            parser = UnifiedDiffParser()
-            result = parser.parse_and_analyze(diff_content)
-            print(f"Found {result['summary']['security_issues_found']} security issues")
+            diff_parser = UnifiedDiffParser()
+            result = diff_parser.parse_and_analyze(diff_content)
+            summary2 = cast(Dict[str, int], result["summary"])
+            print(f"Found {summary2['security_issues_found']} security issues")
 
         elif choice == "2":
             print("Paste your JSON advisory:")
             json_str = input()
             try:
                 advisory_data = json.loads(json_str)
-                parser = MultiFormatAdvisoryParser()
-                vuln = parser.parse(advisory_data)
+                adv_parser = MultiFormatAdvisoryParser()
+                vuln = adv_parser.parse(advisory_data)
                 print(f"Parsed: {vuln.advisory_id} - {vuln.severity}")
             except Exception as e:
                 print(f"Error: {e}")
