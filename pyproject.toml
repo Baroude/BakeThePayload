@@ -5,13 +5,21 @@ description = "Advanced vulnerability analysis system with structured Pydantic m
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "aiohttp>=3.12.15",
+    "aioresponses>=0.7.8",
+    "asyncio-throttle>=1.0.2",
     "bandit>=1.8.6",
     "black>=25.1.0",
+    "cachetools>=6.2.0",
     "isort>=6.0.1",
     "mypy>=1.17.1",
     "packaging>=25.0",
     "pydantic>=2.11.7",
     "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-mock>=3.14.1",
+    "python-dotenv>=1.1.1",
+    "zstandard>=0.24.0",
 ]
 
 [dependency-groups]

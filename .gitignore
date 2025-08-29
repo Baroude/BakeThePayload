@@ -76,6 +76,9 @@ Desktop.ini
 
 # Project specific
 =2.0
+plan.md
+phase*.md
+todo*.md
 
 # Temporary files
 *.tmp
