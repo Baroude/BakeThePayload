@@ -11,6 +11,7 @@ import aiohttp
 from .adapters import FormatAdapter
 from .deduplication import Deduplicator
 from .rate_limiter import APIRateLimiter
+from integration.repo import RepositoryManager
 
 
 class DataSourceManager:
@@ -21,6 +22,7 @@ class DataSourceManager:
         github_token: Optional[str] = None,
         rate_limiter: Optional[APIRateLimiter] = None,
         cache_manager: Optional[Any] = None,
+        repo_base_path: Optional[Path] = None,
     ):
         """Initialize data source manager."""
         self.github_token = github_token
@@ -32,6 +34,12 @@ class DataSourceManager:
         self.advisory_source: Optional[AdvisoryDataSource] = None
         self.filesystem_source: Optional[FileSystemDataSource] = None
         self.webhook_source: Optional[WebhookDataSource] = None
+        
+        # Repository manager
+        self.repository_manager = RepositoryManager(
+            base_path=repo_base_path or Path.cwd() / "temp_repos",
+            max_size_gb=5.0
+        )
 
     async def initialize(self) -> None:
         """Initialize all data sources."""
@@ -88,6 +96,30 @@ class DataSourceManager:
                 print(f"Error processing {vuln_id}: {e}")
 
         return results
+
+    async def clone_repository(self, repo_url: str):
+        """Clone repository using repository manager"""
+        return await self.repository_manager.clone_repository(repo_url)
+
+    async def get_commit_history(self, repo_path: Path, patch_commit: str, context_commits: int = 100):
+        """Get commit history with context using repository manager"""
+        return await self.repository_manager.get_commit_history(
+            repo_path, patch_commit, context_commits
+        )
+
+    async def extract_full_context(self, repo_path: Path, diff_content: str, file_path: str, line_numbers: List[int]):
+        """Extract full function context using repository manager"""
+        return await self.repository_manager.extract_full_context(
+            repo_path, diff_content, file_path, line_numbers
+        )
+
+    async def map_diff_to_functions(self, repo_path: Path, diff_content: str):
+        """Map diff hunks to functions using repository manager"""
+        return await self.repository_manager.map_diff_to_functions(repo_path, diff_content)
+
+    async def cleanup_repository(self, repo_id: str) -> bool:
+        """Cleanup repository after analysis pipeline completion"""
+        return await self.repository_manager.cleanup_repository(repo_id)
 
     async def close(self) -> None:
         """Close all data sources."""
