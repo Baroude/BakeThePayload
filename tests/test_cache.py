@@ -60,20 +60,21 @@ class TestMemoryCache:
 
     def test_lru_eviction(self) -> None:
         """Test LRU eviction when cache is full."""
-        # Small cache to trigger eviction
+        # Small cache to trigger eviction - fit ~3 entries
         cache = MemoryCache(
-            max_size_mb=1, default_ttl=3600
-        )  # ~1MB (changed from 0.001 to avoid float type issue)
+            max_size_mb=0.004, default_ttl=3600
+        )  # ~4KB to fit 3 entries
 
         # Fill cache beyond capacity
-        for i in range(10):
+        for i in range(5):
             key = f"prompt_{i}"
-            value = {"response": "x" * 200, "tokens": 50}  # ~200 bytes each
+            value = {"response": "x" * 1000, "tokens": 50}  # ~1KB each
             cache.set(key, value)
 
-        # Early entries should be evicted
-        assert cache.get("prompt_0") is None
-        assert cache.get("prompt_9") is not None
+        # Early entries should be evicted, later ones should remain
+        assert cache.get("prompt_0") is None  # Should be evicted
+        assert cache.get("prompt_1") is None  # Should be evicted  
+        assert cache.get("prompt_4") is not None  # Should remain
 
     def test_cache_statistics(self) -> None:
         """Test cache hit/miss statistics."""
