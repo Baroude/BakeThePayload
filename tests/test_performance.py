@@ -7,7 +7,7 @@ Tests model creation speed, parsing performance, and memory usage
 import os
 import time
 from datetime import datetime
-from typing import List
+from typing import Any, Callable, Dict, List, Tuple
 
 import psutil
 import pytest
@@ -31,15 +31,19 @@ from models import (
     VulnerabilityReport,
 )
 from parsers import MultiFormatAdvisoryParser, UnifiedDiffParser, VersionExtractor
+from parsers.diff import DiffHunk
+from parsers.version import VersionConstraint
 
 
 class PerformanceMonitor:
     """Helper class for performance measurements"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.process = psutil.Process(os.getpid())
 
-    def measure_time_and_memory(self, func, *args, **kwargs):
+    def measure_time_and_memory(
+        self, func: Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> Dict[str, Any]:
         """Measure execution time and memory usage"""
         # Record initial state
         start_time = time.perf_counter()
@@ -64,10 +68,12 @@ class TestModelPerformance:
     """Test model creation and validation performance"""
 
     @pytest.fixture
-    def monitor(self):
+    def monitor(self) -> PerformanceMonitor:
         return PerformanceMonitor()
 
-    def test_vulnerability_report_creation_speed(self, monitor):
+    def test_vulnerability_report_creation_speed(
+        self, monitor: PerformanceMonitor
+    ) -> None:
         """Test speed of creating VulnerabilityReport instances"""
 
         def create_vulnerability_reports(count: int) -> List[VulnerabilityReport]:
@@ -102,10 +108,10 @@ class TestModelPerformance:
             time_per_instance < 0.001
         ), f"Per-instance creation: {time_per_instance:.6f}s, should be < 1ms"
 
-    def test_complex_model_creation(self, monitor):
+    def test_complex_model_creation(self, monitor: PerformanceMonitor) -> None:
         """Test creation of complex models with relationships"""
 
-        def create_complex_models(count: int):
+        def create_complex_models(count: int) -> List[ExploitFlow]:
             models = []
             for i in range(count):
                 # Create evidence
@@ -165,10 +171,10 @@ class TestModelPerformance:
 
         print(f"Created 500 complex models in {result['time_seconds']:.3f}s")
 
-    def test_model_validation_performance(self, monitor):
+    def test_model_validation_performance(self, monitor: PerformanceMonitor) -> None:
         """Test model validation speed"""
 
-        def validate_models_with_errors(count: int):
+        def validate_models_with_errors(count: int) -> Tuple[int, int]:
             valid_count = 0
             error_count = 0
 
@@ -215,10 +221,10 @@ class TestParserPerformance:
     """Test parser performance monitors"""
 
     @pytest.fixture
-    def monitor(self):
+    def monitor(self) -> PerformanceMonitor:
         return PerformanceMonitor()
 
-    def test_diff_parser_performance(self, monitor):
+    def test_diff_parser_performance(self, monitor: PerformanceMonitor) -> None:
         """Test diff parsing speed with large diffs"""
 
         # Generate a large diff
@@ -241,7 +247,7 @@ class TestParserPerformance:
 
         large_diff = generate_large_diff()
 
-        def parse_diff():
+        def parse_diff() -> Dict[str, Any]:
             parser = UnifiedDiffParser()
             return parser.parse_and_analyze(large_diff)
 
@@ -261,10 +267,10 @@ class TestParserPerformance:
         )
         print(f"Found {analysis_result['summary']['total_hunks']} hunks")
 
-    def test_advisory_parser_performance(self, monitor):
+    def test_advisory_parser_performance(self, monitor: PerformanceMonitor) -> None:
         """Test advisory parsing speed"""
 
-        def parse_multiple_advisories(count: int):
+        def parse_multiple_advisories(count: int) -> List[VulnerabilityReport]:
             parser = MultiFormatAdvisoryParser()
             results = []
 
@@ -302,10 +308,10 @@ class TestParserPerformance:
         print(f"Parsed 100 advisories in {result['time_seconds']:.3f}s")
         print(f"Average per advisory: {result['time_seconds']/100*1000:.1f}ms")
 
-    def test_version_extractor_performance(self, monitor):
+    def test_version_extractor_performance(self, monitor: PerformanceMonitor) -> None:
         """Test version constraint processing speed"""
 
-        def process_version_constraints(count: int):
+        def process_version_constraints(count: int) -> List[Any]:
             extractor = VersionExtractor()
             results = []
 
@@ -343,13 +349,13 @@ class TestMemoryUsage:
     """Test memory usage patterns"""
 
     @pytest.fixture
-    def monitor(self):
+    def monitor(self) -> PerformanceMonitor:
         return PerformanceMonitor()
 
-    def test_memory_usage_scaling(self, monitor):
+    def test_memory_usage_scaling(self, monitor: PerformanceMonitor) -> None:
         """Test that memory usage scales linearly with input size"""
 
-        def create_models(count: int):
+        def create_models(count: int) -> List[VulnerabilityReport]:
             models = []
             for i in range(count):
                 model = VulnerabilityReport(
@@ -382,11 +388,11 @@ class TestMemoryUsage:
             peak_memory_1000 < 100
         ), f"Memory usage {peak_memory_1000:.2f}MB exceeds 100MB limit"
 
-    def test_memory_cleanup(self, monitor):
+    def test_memory_cleanup(self, monitor: PerformanceMonitor) -> None:
         """Test that objects are properly garbage collected"""
         import gc
 
-        def create_and_destroy_models():
+        def create_and_destroy_models() -> None:
             # Create many models
             models = []
             for i in range(1000):
@@ -401,7 +407,6 @@ class TestMemoryUsage:
             # Clear references
             models.clear()
             gc.collect()  # Force garbage collection
-            return "completed"
 
         result = monitor.measure_time_and_memory(create_and_destroy_models)
 
@@ -415,7 +420,7 @@ class TestMemoryUsage:
 class TestBenchmarkSuite:
     """Complete monitor suite for CI/CD"""
 
-    def test_overall_performance_monitor(self):
+    def test_overall_performance_monitor(self) -> None:
         """Comprehensive performance test for CI/CD monitoring"""
         monitor = PerformanceMonitor()
 

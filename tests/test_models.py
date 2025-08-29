@@ -5,10 +5,11 @@ Tests all Pydantic models for field validation, edge cases, and cross-model refe
 """
 
 from datetime import datetime
-from typing import List
+from typing import Dict, List, Optional, Set
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import HttpUrl
 
 from models import (
     AffectedArtifact,
@@ -37,14 +38,14 @@ from models import (
 class TestSecurityBaseModel:
     """Test the base model functionality"""
 
-    def test_automatic_id_generation(self):
+    def test_automatic_id_generation(self) -> None:
         """Test that IDs are automatically generated"""
         model = SecurityBaseModel()
         assert isinstance(model.id, UUID)
         assert model.created_at is not None
         assert isinstance(model.created_at, datetime)
 
-    def test_timestamp_update(self):
+    def test_timestamp_update(self) -> None:
         """Test timestamp update functionality"""
         model = SecurityBaseModel()
         original_created = model.created_at
@@ -52,9 +53,9 @@ class TestSecurityBaseModel:
 
         model.update_timestamp()
         assert model.updated_at is not None
-        assert model.updated_at >= original_created
+        assert model.updated_at >= original_created  # type: ignore
 
-    def test_metadata_storage(self):
+    def test_metadata_storage(self) -> None:
         """Test metadata field functionality"""
         metadata = {"custom_field": "value", "number": 42}
         model = SecurityBaseModel(metadata=metadata)
@@ -62,7 +63,7 @@ class TestSecurityBaseModel:
 
     # NEW HIGH PRIORITY BASE MODEL TESTS
 
-    def test_uuid_uniqueness_across_multiple_instances(self):
+    def test_uuid_uniqueness_across_multiple_instances(self) -> None:
         """Test UUID uniqueness across thousands of instances"""
         # Create 5000 instances to test uniqueness
         models = [SecurityBaseModel() for _ in range(5000)]
@@ -77,7 +78,7 @@ class TestSecurityBaseModel:
             # Test UUID version (should be UUID4)
             assert model_id.version == 4, f"UUID {model_id} is not version 4"
 
-    def test_metadata_field_constraints(self):
+    def test_metadata_field_constraints(self) -> None:
         """Test metadata field accepts complex nested dictionaries and lists"""
         # Test complex nested metadata
         complex_metadata = {
@@ -109,7 +110,7 @@ class TestSecurityBaseModel:
         assert model.metadata["list_field"][4]["nested_in_list"] is True
         assert model.metadata["unicode"] == "测试 émojis 🔒 العربية αβγ"
 
-    def test_timestamp_precision(self):
+    def test_timestamp_precision(self) -> None:
         """Test created_at and updated_at maintain microsecond precision"""
         import time
 
@@ -123,11 +124,15 @@ class TestSecurityBaseModel:
         updated_time = model.updated_at
 
         # Test microsecond precision exists
-        assert created_time.microsecond >= 0
-        assert updated_time.microsecond >= 0
+        assert created_time is not None and created_time.microsecond >= 0
+        assert updated_time is not None and updated_time.microsecond >= 0
 
         # Test that timestamps are different
-        assert updated_time > created_time
+        assert (
+            updated_time is not None
+            and created_time is not None
+            and updated_time > created_time
+        )
 
         # Test precision by creating multiple models rapidly
         models = []
@@ -142,7 +147,7 @@ class TestSecurityBaseModel:
             m > 0 for m in microseconds
         ), "Should have some non-zero microsecond values"
 
-    def test_model_serialization_edge_cases(self):
+    def test_model_serialization_edge_cases(self) -> None:
         """Test JSON serialization with special characters, unicode, and deeply nested objects"""
         # Create model with challenging serialization content
         challenging_metadata = {
@@ -190,7 +195,7 @@ class TestSecurityBaseModel:
             == "🔐 Security Test 中文 العربية ñáéíóú αβγδε"
         )
 
-    def test_validate_assignment_configuration(self):
+    def test_validate_assignment_configuration(self) -> None:
         """Test field assignment validation works correctly during runtime updates"""
         model = SecurityBaseModel()
         original_id = model.id
@@ -209,7 +214,7 @@ class TestSecurityBaseModel:
         # Verify the original ID is preserved
         assert model.id == original_id
 
-    def test_enum_value_serialization(self):
+    def test_enum_value_serialization(self) -> None:
         """Test enums serialize to their string values in JSON output"""
         from models import EcosystemEnum, NodeType, SeverityEnum
 
@@ -244,7 +249,7 @@ class TestSecurityBaseModel:
 class TestValidators:
     """Test custom validators"""
 
-    def test_validate_version_format(self):
+    def test_validate_version_format(self) -> None:
         """Test version format validation"""
         # Valid versions
         valid_versions = ["1.0.0", "2.1.3", "10.20.30", "1.0.0-alpha", "2.0.0+build"]
@@ -258,7 +263,7 @@ class TestValidators:
             with pytest.raises(ValueError):
                 validate_version_format(version)
 
-    def test_validate_confidence_score(self):
+    def test_validate_confidence_score(self) -> None:
         """Test confidence score validation"""
         # Valid scores
         valid_scores = [0.0, 0.5, 1.0, 0.99, 0.01]
@@ -274,7 +279,7 @@ class TestValidators:
 
     # NEW HIGH PRIORITY VALIDATION TESTS
 
-    def test_validate_version_format_with_pre_release_versions(self):
+    def test_validate_version_format_with_pre_release_versions(self) -> None:
         """Test version format validation with pre-release versions"""
         # Valid pre-release versions
         valid_pre_releases = [
@@ -292,7 +297,7 @@ class TestValidators:
             result = validate_version_format(version)
             assert result == version, f"Version {version} should be valid"
 
-    def test_validate_version_format_with_invalid_formats(self):
+    def test_validate_version_format_with_invalid_formats(self) -> None:
         """Test version format validation with invalid formats"""
         invalid_versions = [
             "1",  # Single number
@@ -307,7 +312,7 @@ class TestValidators:
                 with pytest.raises(
                     ValueError, match="Version must be a non-empty string"
                 ):
-                    validate_version_format(version)
+                    validate_version_format(version)  # type: ignore
             elif version == "":
                 with pytest.raises(
                     ValueError, match="Version must be a non-empty string"
@@ -322,7 +327,7 @@ class TestValidators:
                     # If it fails, that's also OK - validation caught the error
                     pass
 
-    def test_validate_confidence_score_boundary_conditions(self):
+    def test_validate_confidence_score_boundary_conditions(self) -> None:
         """Test confidence score validation with boundary conditions"""
         import math
 
@@ -359,7 +364,7 @@ class TestValidators:
         assert validate_confidence_score(-0.0) == 0.0  # -0.0 should be treated as 0.0
         assert validate_confidence_score(+0.0) == 0.0
 
-    def test_custom_validator_error_messages(self):
+    def test_custom_validator_error_messages(self) -> None:
         """Test that error messages are descriptive and contain field names"""
         # Test version format error messages
         try:
@@ -392,26 +397,28 @@ class TestValidators:
 class TestReference:
     """Test Reference model"""
 
-    def test_valid_reference(self):
+    def test_valid_reference(self) -> None:
         """Test creating valid references"""
+        from pydantic import HttpUrl
+
         ref = Reference(
-            url="https://example.com/advisory",
+            url=HttpUrl("https://example.com/advisory"),
             source="GitHub",
             description="Security advisory",
         )
         assert str(ref.url) == "https://example.com/advisory"
         assert ref.source == "GitHub"
 
-    def test_invalid_url(self):
+    def test_invalid_url(self) -> None:
         """Test URL validation"""
         with pytest.raises(ValueError):
-            Reference(url="invalid-url", source="test")
+            Reference(url="invalid-url", source="test")  # type: ignore
 
 
 class TestEvidence:
     """Test Evidence model"""
 
-    def test_valid_evidence(self):
+    def test_valid_evidence(self) -> None:
         """Test creating valid evidence"""
         evidence = Evidence(
             type="code",
@@ -425,14 +432,14 @@ class TestEvidence:
         assert evidence.file_path == "/path/to/file.py"
         assert evidence.line_number == 42
 
-    def test_confidence_validation(self):
+    def test_confidence_validation(self) -> None:
         """Test confidence score validation in Evidence"""
         with pytest.raises(ValueError):
             Evidence(type="test", content="test", confidence=1.5)
 
     # NEW HIGH PRIORITY EVIDENCE TESTS
 
-    def test_evidence_with_extremely_long_content(self):
+    def test_evidence_with_extremely_long_content(self) -> None:
         """Test evidence with extremely long content (>100KB)"""
         # Create content larger than 100KB
         large_content = "A" * (100 * 1024 + 1000)  # 100KB + 1000 chars
@@ -444,7 +451,7 @@ class TestEvidence:
         assert evidence.content[-10:] == "A" * 10
         assert evidence.type == "large_content"
 
-    def test_evidence_without_optional_fields(self):
+    def test_evidence_without_optional_fields(self) -> None:
         """Test evidence with only required fields"""
         evidence = Evidence(type="minimal", content="minimal evidence", confidence=0.5)
 
@@ -454,7 +461,7 @@ class TestEvidence:
         assert evidence.file_path is None
         assert evidence.line_number is None
 
-    def test_evidence_with_special_file_paths(self):
+    def test_evidence_with_special_file_paths(self) -> None:
         """Test evidence with Windows paths, Unix paths, relative paths, paths with spaces"""
         test_cases = [
             # Windows paths
@@ -489,7 +496,7 @@ class TestEvidence:
             else:
                 assert evidence.file_path is None
 
-    def test_evidence_confidence_edge_cases(self):
+    def test_evidence_confidence_edge_cases(self) -> None:
         """Test evidence confidence validation with float precision issues"""
         # Test boundary values
         evidence_0 = Evidence(type="test", content="test", confidence=0.0)
@@ -520,7 +527,7 @@ class TestEvidence:
         with pytest.raises(ValueError):
             Evidence(type="test", content="test", confidence=1.0000001)
 
-    def test_evidence_with_empty_content(self):
+    def test_evidence_with_empty_content(self) -> None:
         """Test evidence with empty string content"""
         evidence = Evidence(
             type="empty_content", content="", confidence=0.1  # Empty string content
@@ -534,7 +541,7 @@ class TestEvidence:
 class TestVulnerabilityReport:
     """Test VulnerabilityReport model"""
 
-    def test_minimal_vulnerability_report(self):
+    def test_minimal_vulnerability_report(self) -> None:
         """Test creating minimal vulnerability report"""
         vuln = VulnerabilityReport(
             advisory_id="CVE-2024-12345",
@@ -546,10 +553,10 @@ class TestVulnerabilityReport:
         assert vuln.severity == SeverityEnum.HIGH
         assert vuln.cvss_score is None
 
-    def test_full_vulnerability_report(self):
+    def test_full_vulnerability_report(self) -> None:
         """Test creating complete vulnerability report"""
         evidence = Evidence(type="test", content="test evidence", confidence=0.9)
-        reference = Reference(url="https://example.com", source="test")
+        reference = Reference(url=HttpUrl("https://example.com"), source="test")
 
         vuln = VulnerabilityReport(
             advisory_id="GHSA-test-123",
@@ -570,7 +577,7 @@ class TestVulnerabilityReport:
         assert len(vuln.references) == 1
         assert len(vuln.evidence) == 1
 
-    def test_cvss_score_validation(self):
+    def test_cvss_score_validation(self) -> None:
         """Test CVSS score validation"""
         with pytest.raises(ValueError, match="CVSS score must be between 0.0 and 10.0"):
             VulnerabilityReport(
@@ -581,7 +588,7 @@ class TestVulnerabilityReport:
                 cvss_score=11.0,
             )
 
-    def test_cwe_id_validation(self):
+    def test_cwe_id_validation(self) -> None:
         """Test CWE ID format validation"""
         with pytest.raises(ValueError, match="Invalid CWE ID format"):
             VulnerabilityReport(
@@ -594,7 +601,7 @@ class TestVulnerabilityReport:
 
     # NEW HIGH PRIORITY VULNERABILITY REPORT TESTS
 
-    def test_cvss_vector_validation(self):
+    def test_cvss_vector_validation(self) -> None:
         """Test CVSS vector validation for different versions"""
         valid_vectors = [
             # CVSS 3.1 vectors
@@ -618,7 +625,7 @@ class TestVulnerabilityReport:
             )
             assert vuln.cvss_vector == vector
 
-    def test_cwe_id_validation_edge_cases(self):
+    def test_cwe_id_validation_edge_cases(self) -> None:
         """Test CWE ID validation edge cases"""
         # Valid CWE IDs
         valid_cwes = ["CWE-1", "CWE-79", "CWE-89", "CWE-1000", "CWE-9999"]
@@ -666,7 +673,7 @@ class TestVulnerabilityReport:
                     # Expected for truly invalid CWEs
                     pass
 
-    def test_vulnerability_with_maximum_field_lengths(self):
+    def test_vulnerability_with_maximum_field_lengths(self) -> None:
         """Test vulnerability with extremely long titles and descriptions"""
         # Create very long title (>1KB)
         long_title = "A" * 2048
@@ -686,7 +693,7 @@ class TestVulnerabilityReport:
         assert vuln.title[:10] == "A" * 10
         assert vuln.description[:10] == "B" * 10
 
-    def test_vulnerability_with_all_optional_fields_none(self):
+    def test_vulnerability_with_all_optional_fields_none(self) -> None:
         """Test minimal vulnerability report validation"""
         vuln = VulnerabilityReport(
             advisory_id="minimal-test",
@@ -704,7 +711,7 @@ class TestVulnerabilityReport:
         assert vuln.references == []
         assert vuln.evidence == []
 
-    def test_vulnerability_date_handling(self):
+    def test_vulnerability_date_handling(self) -> None:
         """Test vulnerability date handling with edge cases"""
         from datetime import datetime, timezone
 
@@ -743,7 +750,7 @@ class TestVulnerabilityReport:
         )
         assert vuln3.published_at == past_date
 
-    def test_vulnerability_with_duplicate_cwe_ids(self):
+    def test_vulnerability_with_duplicate_cwe_ids(self) -> None:
         """Test handling of duplicate CWE identifiers in list"""
         # Duplicate CWE IDs should be allowed (filtered by application logic if needed)
         duplicate_cwes = ["CWE-79", "CWE-89", "CWE-79", "CWE-20", "CWE-89"]
@@ -760,7 +767,7 @@ class TestVulnerabilityReport:
         assert "CWE-79" in vuln.cwe_ids
         assert "CWE-89" in vuln.cwe_ids
 
-    def test_vulnerability_with_empty_evidence_list(self):
+    def test_vulnerability_with_empty_evidence_list(self) -> None:
         """Test vulnerability with empty evidence arrays"""
         vuln = VulnerabilityReport(
             advisory_id="empty-evidence-test",
@@ -773,7 +780,7 @@ class TestVulnerabilityReport:
         assert vuln.evidence == []
         assert len(vuln.evidence) == 0
 
-    def test_vulnerability_with_circular_reference_handling(self):
+    def test_vulnerability_with_circular_reference_handling(self) -> None:
         """Test that no circular references exist in nested evidence"""
         # Create evidence that could potentially create circular references
         evidence1 = Evidence(
@@ -807,7 +814,7 @@ class TestVulnerabilityReport:
 class TestExploitFlow:
     """Test ExploitFlow models"""
 
-    def test_exploit_node_creation(self):
+    def test_exploit_node_creation(self) -> None:
         """Test creating exploit nodes"""
         node = ExploitNode(
             node_id=uuid4(),
@@ -822,7 +829,7 @@ class TestExploitFlow:
         assert node.confidence == 0.9
         assert len(node.preconditions) == 1
 
-    def test_flow_edge_creation(self):
+    def test_flow_edge_creation(self) -> None:
         """Test creating flow edges"""
         source_id = uuid4()
         target_id = uuid4()
@@ -840,7 +847,7 @@ class TestExploitFlow:
         assert edge.target == target_id
         assert edge.probability == 0.7
 
-    def test_exploit_flow_validation(self):
+    def test_exploit_flow_validation(self) -> None:
         """Test exploit flow with node reference validation"""
         node1_id = uuid4()
         node2_id = uuid4()
@@ -877,7 +884,7 @@ class TestExploitFlow:
         # Test validation method
         assert flow.validate_node_references() == True
 
-    def test_exploit_flow_invalid_references(self):
+    def test_exploit_flow_invalid_references(self) -> None:
         """Test exploit flow with invalid node references"""
         node1_id = uuid4()
         invalid_id = uuid4()
@@ -909,7 +916,7 @@ class TestExploitFlow:
 
     # NEW MEDIUM PRIORITY EXPLOIT FLOW TESTS
 
-    def test_exploit_node_with_maximum_preconditions_postconditions(self):
+    def test_exploit_node_with_maximum_preconditions_postconditions(self) -> None:
         """Test exploit node with 100+ preconditions and postconditions"""
         # Create node with many conditions
         many_preconditions = [f"precondition_{i}" for i in range(150)]
@@ -932,7 +939,7 @@ class TestExploitFlow:
         assert node.postconditions[0] == "postcondition_0"
         assert node.postconditions[-1] == "postcondition_119"
 
-    def test_exploit_node_uuid_validation(self):
+    def test_exploit_node_uuid_validation(self) -> None:
         """Test that node_id must be valid UUID format"""
         valid_uuid = uuid4()
 
@@ -954,7 +961,7 @@ class TestExploitFlow:
         test_uuid_str = str(uuid4())
 
         node_from_string = ExploitNode(
-            node_id=test_uuid_str,  # String representation
+            node_id=UUID(test_uuid_str),  # Convert string to UUID
             type=NodeType.VALIDATION,
             title="UUID from String",
             description="Testing UUID from string",
@@ -965,7 +972,7 @@ class TestExploitFlow:
         assert isinstance(node_from_string.node_id, UUID)
         assert str(node_from_string.node_id) == test_uuid_str
 
-    def test_exploit_node_type_enumeration_validation(self):
+    def test_exploit_node_type_enumeration_validation(self) -> None:
         """Test exploit node with all valid NodeType values"""
         from models.base import NodeType
 
@@ -992,7 +999,7 @@ class TestExploitFlow:
             # Note: With Pydantic V2 and use_enum_values=True, enum may be serialized to string
             # This is expected behavior with the current model configuration
 
-    def test_exploit_node_with_nested_evidence_structures(self):
+    def test_exploit_node_with_nested_evidence_structures(self) -> None:
         """Test exploit nodes containing evidence with file references"""
         # Create evidence with file references
         code_evidence = Evidence(
@@ -1043,7 +1050,7 @@ class TestExploitFlow:
         assert node_with_evidence.evidence[2].type == "log_file"
         assert node_with_evidence.evidence[2].line_number == 1247
 
-    def test_exploit_flow_with_circular_edge_references(self):
+    def test_exploit_flow_with_circular_edge_references(self) -> None:
         """Test exploit flows where nodes reference themselves"""
         node1_id = uuid4()
         node2_id = uuid4()
@@ -1113,7 +1120,7 @@ class TestExploitFlow:
         assert len(self_referencing_edges) == 1
         assert self_referencing_edges[0].source == node1_id
 
-    def test_exploit_flow_with_orphaned_nodes(self):
+    def test_exploit_flow_with_orphaned_nodes(self) -> None:
         """Test flows with nodes that are not referenced by any edges"""
         connected_node_id = uuid4()
         orphaned_node1_id = uuid4()
@@ -1170,7 +1177,7 @@ class TestExploitFlow:
         # All nodes are orphaned since there are no edges
         assert len(orphaned_ids) == 3
 
-    def test_exploit_flow_with_disconnected_subgraphs(self):
+    def test_exploit_flow_with_disconnected_subgraphs(self) -> None:
         """Test flows with multiple node clusters with no connections between them"""
         # Cluster 1: Entry -> Validation
         cluster1_entry = ExploitNode(
@@ -1243,7 +1250,7 @@ class TestExploitFlow:
         assert len(disconnected_flow.entry_points) == 2
         assert len(disconnected_flow.impact_nodes) == 2
 
-    def test_exploit_flow_validation_performance_large_graphs(self):
+    def test_exploit_flow_validation_performance_large_graphs(self) -> None:
         """Test exploit flow validation with 1000+ nodes and 10000+ edges"""
         import time
 
@@ -1324,7 +1331,7 @@ class TestExploitFlow:
             f"Validated large flow ({len(large_flow.nodes)} nodes, {len(large_flow.edges)} edges) in {validation_time:.3f}s"
         )
 
-    def test_exploit_flow_with_duplicate_node_ids(self):
+    def test_exploit_flow_with_duplicate_node_ids(self) -> None:
         """Test flow validation with duplicate node identifiers"""
         duplicate_id = uuid4()
 
@@ -1373,7 +1380,7 @@ class TestExploitFlow:
             # Duplicate IDs might be rejected at creation time
             assert "duplicate" in str(e).lower() or "unique" in str(e).lower()
 
-    def test_exploit_flow_edge_probability_validation(self):
+    def test_exploit_flow_edge_probability_validation(self) -> None:
         """Test edge probability validation outside 0.0-1.0 range"""
         node1_id = uuid4()
         node2_id = uuid4()
@@ -1418,7 +1425,7 @@ class TestExploitFlow:
                     edge_id=uuid4(), source=node1_id, target=node2_id, probability=prob
                 )
 
-    def test_exploit_flow_with_missing_entry_impact_nodes(self):
+    def test_exploit_flow_with_missing_entry_impact_nodes(self) -> None:
         """Test flows where entry_points/impact_nodes reference non-existent nodes"""
         existing_node_id = uuid4()
         nonexistent_id1 = uuid4()
@@ -1470,7 +1477,7 @@ class TestExploitFlow:
             # Might be caught at creation time
             pass
 
-    def test_complex_exploit_flow_traversal_validation(self):
+    def test_complex_exploit_flow_traversal_validation(self) -> None:
         """Test that all paths from entry to impact nodes are valid"""
         # Create a complex flow: Entry -> Auth -> Validation -> Processing -> Impact
         entry_id = uuid4()
@@ -1559,14 +1566,16 @@ class TestExploitFlow:
 
         # Test path analysis (basic connectivity check)
         # Build adjacency list
-        adjacency = {}
+        adjacency: Dict[UUID, List[UUID]] = {}
         for edge in complex_flow.edges:
             if edge.source not in adjacency:
                 adjacency[edge.source] = []
             adjacency[edge.source].append(edge.target)
 
         # Check that entry can reach impact (basic reachability)
-        def can_reach(start, target, visited=None):
+        def can_reach(
+            start: UUID, target: UUID, visited: Optional[Set[UUID]] = None
+        ) -> bool:
             if visited is None:
                 visited = set()
             if start == target:
@@ -1594,13 +1603,13 @@ class TestExploitFlow:
 class TestAffectedArtifact:
     """Test AffectedArtifact models"""
 
-    def test_version_range_creation(self):
+    def test_version_range_creation(self) -> None:
         """Test creating version ranges"""
         version_range = VersionRange(constraint=">=1.0.0", ecosystem=EcosystemEnum.NPM)
         assert version_range.constraint == ">=1.0.0"
         assert version_range.ecosystem == EcosystemEnum.NPM
 
-    def test_component_creation(self):
+    def test_component_creation(self) -> None:
         """Test creating components"""
         component = Component(
             name="authenticate_user",
@@ -1613,7 +1622,7 @@ class TestAffectedArtifact:
         assert component.name == "authenticate_user"
         assert component.line_range == (10, 25)
 
-    def test_component_line_range_validation(self):
+    def test_component_line_range_validation(self) -> None:
         """Test line range validation"""
         with pytest.raises(ValueError, match="Line numbers must be positive"):
             Component(name="test", type="function", line_range=(0, 10))
@@ -1621,7 +1630,7 @@ class TestAffectedArtifact:
         with pytest.raises(ValueError, match="Start line must be less than or equal"):
             Component(name="test", type="function", line_range=(20, 10))
 
-    def test_affected_artifact_creation(self):
+    def test_affected_artifact_creation(self) -> None:
         """Test creating affected artifacts"""
         version_range = VersionRange(constraint=">=1.0.0", ecosystem=EcosystemEnum.PYPI)
         component = Component(name="vulnerable_func", type="function")
@@ -1639,7 +1648,7 @@ class TestAffectedArtifact:
         assert len(artifact.affected_versions) == 1
         assert len(artifact.fixed_versions) == 1
 
-    def test_fixed_version_validation(self):
+    def test_fixed_version_validation(self) -> None:
         """Test fixed version format validation"""
         with pytest.raises(ValueError, match="Invalid version format"):
             AffectedArtifact(
@@ -1653,7 +1662,7 @@ class TestAffectedArtifact:
 class TestRiskAssessment:
     """Test RiskAssessment models"""
 
-    def test_impact_creation(self):
+    def test_impact_creation(self) -> None:
         """Test creating impact assessments"""
         impact = Impact(
             confidentiality=ImpactLevel.COMPLETE,
@@ -1665,7 +1674,7 @@ class TestRiskAssessment:
         assert impact.confidentiality == ImpactLevel.COMPLETE
         assert impact.scope == "changed"
 
-    def test_impact_scope_validation(self):
+    def test_impact_scope_validation(self) -> None:
         """Test impact scope validation"""
         with pytest.raises(ValueError, match="Scope must be 'changed' or 'unchanged'"):
             Impact(
@@ -1675,7 +1684,7 @@ class TestRiskAssessment:
                 scope="invalid",
             )
 
-    def test_mitigation_creation(self):
+    def test_mitigation_creation(self) -> None:
         """Test creating mitigations"""
         mitigation = Mitigation(
             type="patch",
@@ -1689,7 +1698,7 @@ class TestRiskAssessment:
         assert mitigation.effectiveness == 0.95
         assert mitigation.complexity == "low"
 
-    def test_mitigation_complexity_validation(self):
+    def test_mitigation_complexity_validation(self) -> None:
         """Test mitigation complexity validation"""
         with pytest.raises(ValueError, match="Complexity must be"):
             Mitigation(
@@ -1699,7 +1708,7 @@ class TestRiskAssessment:
                 complexity="invalid",
             )
 
-    def test_risk_factor_creation(self):
+    def test_risk_factor_creation(self) -> None:
         """Test creating risk factors"""
         factor = RiskFactor(
             name="Network Access Required",
@@ -1711,7 +1720,7 @@ class TestRiskAssessment:
         assert factor.name == "Network Access Required"
         assert factor.weight == 0.3
 
-    def test_risk_assessment_creation(self):
+    def test_risk_assessment_creation(self) -> None:
         """Test creating complete risk assessments"""
         impact = Impact(
             confidentiality=ImpactLevel.COMPLETE,
@@ -1745,7 +1754,7 @@ class TestRiskAssessment:
         assert len(assessment.factors) == 1
         assert len(assessment.mitigations) == 1
 
-    def test_risk_calculation(self):
+    def test_risk_calculation(self) -> None:
         """Test overall risk calculation"""
         impact = Impact(
             confidentiality=ImpactLevel.COMPLETE,
@@ -1781,7 +1790,7 @@ class TestRiskAssessment:
 class TestEdgeCases:
     """Test edge cases and error conditions"""
 
-    def test_empty_strings(self):
+    def test_empty_strings(self) -> None:
         """Test handling of empty strings"""
         # Empty strings are actually allowed by Pydantic by default
         # This test validates that the model handles them gracefully
@@ -1793,7 +1802,7 @@ class TestEdgeCases:
         )
         assert vuln.title == ""
 
-    def test_none_values(self):
+    def test_none_values(self) -> None:
         """Test handling of None values for optional fields"""
         vuln = VulnerabilityReport(
             advisory_id="test",
@@ -1807,7 +1816,7 @@ class TestEdgeCases:
         assert vuln.cvss_score is None
         assert vuln.published_at is None
 
-    def test_large_data(self):
+    def test_large_data(self) -> None:
         """Test handling of large data"""
         # Create vulnerability with large description
         large_description = "x" * 10000  # 10KB description
@@ -1821,7 +1830,7 @@ class TestEdgeCases:
 
         assert len(vuln.description) == 10000
 
-    def test_unicode_data(self):
+    def test_unicode_data(self) -> None:
         """Test handling of unicode data"""
         vuln = VulnerabilityReport(
             advisory_id="unicode-test",
