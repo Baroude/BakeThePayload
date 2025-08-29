@@ -18,6 +18,9 @@ except ImportError:
 from agents.collector import AsyncHTTPClient, CollectorAgent
 from agents.data_sources import AdvisoryDataSource, GitHubDataSource
 from agents.rate_limiter import APIRateLimiter
+from analysis.callgraph import CallGraphBuilder
+from analysis.context import CodeContextExtractor
+from integration.repo import RepositoryManager
 from models import VulnerabilityReport
 from parsers.advisory import MultiFormatAdvisoryParser
 from parsers.diff import UnifiedDiffParser
@@ -34,6 +37,8 @@ class VulnerabilityCollectionResult:
         self.parsed_advisory: Optional[VulnerabilityReport] = None
         self.raw_content: Dict[str, Any] = {}
         self.metadata: Dict[str, Any] = {}
+        self.repository_context: Optional[Dict[str, Any]] = None
+        self.call_graph: Optional[Dict[str, Any]] = None
 
 
 async def discover_related_cve_data(
@@ -68,6 +73,123 @@ async def discover_related_cve_data(
             commit_urls.append(url)
 
     return cve_id, commit_urls
+
+
+async def analyze_repository_context(
+    commit_urls: List[str], github_token: str
+) -> Optional[Dict[str, Any]]:
+    """Clone repository and analyze code context around vulnerable functions"""
+    if not commit_urls:
+        return None
+    
+    # Extract repository URL from first commit
+    commit_url = commit_urls[0]
+    if "/commit/" not in commit_url:
+        return None
+    
+    # Convert commit URL to repo URL
+    repo_url = commit_url.split("/commit/")[0] + ".git"
+    
+    print(f"   [INFO] Analyzing repository context for: {repo_url}")
+    
+    # Initialize repository manager and Tree-sitter components
+    temp_dir = Path("temp_repos")
+    repo_manager = RepositoryManager(temp_dir, max_size_gb=2.0)
+    context_extractor = CodeContextExtractor()
+    call_graph_builder = CallGraphBuilder()
+    
+    try:
+        # Clone repository
+        clone_result = await repo_manager.clone_repository(repo_url)
+        if not clone_result.success:
+            print(f"   [!] Repository cloning failed: {clone_result.error_message}")
+            return None
+        
+        print(f"   [OK] Repository cloned: {clone_result.size_gb:.2f}GB, {clone_result.commit_count} commits")
+        
+        # Extract file paths from commit URLs
+        modified_files = []
+        for commit_url in commit_urls[:3]:  # Analyze first 3 commits
+            # Get commit SHA
+            sha = commit_url.split("/commit/")[-1]
+            
+            # Get modified files for this commit
+            cmd = ["git", "-C", str(clone_result.local_path), "diff-tree", "--name-only", "-r", sha]
+            process = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            
+            if process.returncode == 0:
+                files = [line.strip() for line in stdout.decode().split('\n') if line.strip()]
+                # Filter for Ruby files
+                ruby_files = [f for f in files if f.endswith('.rb')]
+                modified_files.extend(ruby_files)
+        
+        # Remove duplicates and get full paths
+        unique_files = list(set(modified_files))
+        full_file_paths = [str(clone_result.local_path / f) for f in unique_files]
+        
+        print(f"   [OK] Found {len(unique_files)} Ruby files to analyze")
+        
+        # Build call graph for modified files
+        call_graph = call_graph_builder.build_call_graph(full_file_paths, max_depth=2)
+        graph_stats = call_graph_builder.get_graph_statistics(call_graph)
+        
+        print(f"   [OK] Call graph built: {graph_stats['total_functions']} functions, {graph_stats['total_relationships']} relationships")
+        
+        # Extract context for vulnerable functions
+        vulnerable_functions = []
+        for file_path in full_file_paths:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Extract all function contexts
+                context = context_extractor.extract_context(file_path, content)
+                
+                # Look for functions that might be vulnerable
+                for func in context.primary_functions:
+                    # Find callers of this function
+                    callers = call_graph_builder.get_function_callers(call_graph, func.name, file_path)
+                    caller_info = [{"name": c.function_name, "file": c.file_path, "lines": f"{c.start_line}-{c.end_line}"} for c in callers]
+                    
+                    vulnerable_functions.append({
+                        "name": func.name,
+                        "file": file_path.replace(str(clone_result.local_path) + os.sep, ""),
+                        "lines": f"{func.start_line}-{func.end_line}",
+                        "parameters": func.parameters,
+                        "calls_made": func.calls_made,
+                        "variables_used": func.variables_used,
+                        "full_source": func.full_text,
+                        "callers": caller_info
+                    })
+            except Exception as e:
+                print(f"   [!] Failed to analyze {file_path}: {e}")
+                continue
+        
+        # Cleanup repository
+        await repo_manager.cleanup_repository(clone_result.repo_id)
+        
+        return {
+            "repository_url": repo_url,
+            "clone_stats": {
+                "size_gb": clone_result.size_gb,
+                "commit_count": clone_result.commit_count,
+                "files_analyzed": len(unique_files)
+            },
+            "call_graph_stats": graph_stats,
+            "vulnerable_functions": vulnerable_functions
+        }
+        
+    except Exception as e:
+        print(f"   [!] Repository analysis failed: {e}")
+        # Cleanup on failure
+        try:
+            await repo_manager.cleanup_repository(clone_result.repo_id if 'clone_result' in locals() else "unknown")
+        except:
+            pass
+        return None
 
 
 async def fetch_commit_data(
@@ -218,6 +340,18 @@ async def test_github_advisory() -> Optional[Dict[str, Any]]:
                     f"   [OK] Commit {i+1}: {commit_data['commit'].get('sha', 'Unknown')[:8]}..."
                 )
 
+        # Step 5.5: Repository Context Analysis with Tree-sitter
+        print(f"\n5.5. Analyzing Repository Context with Tree-sitter")
+        result.repository_context = await analyze_repository_context(commit_urls, github_token)
+        if result.repository_context:
+            stats = result.repository_context["clone_stats"]
+            graph_stats = result.repository_context["call_graph_stats"]
+            func_count = len(result.repository_context["vulnerable_functions"])
+            print(f"   [OK] Repository analysis: {stats['files_analyzed']} files, {func_count} functions analyzed")
+            print(f"   [OK] Call graph: {graph_stats['total_functions']} functions, {graph_stats['resolution_rate']:.1%} call resolution")
+        else:
+            print(f"   [!] Repository context analysis failed")
+
         # Step 6: Parse the collected data
         print(f"\n6. Parsing Collected Data...")
 
@@ -300,12 +434,16 @@ async def test_github_advisory() -> Optional[Dict[str, Any]]:
         # Display summary
         print(f"\n8. Collection Summary")
         print(
-            f"   Sources collected: GHSA [OK], NVD {'[OK]' if result.nvd_data else '[!]'}, OSV ({len(result.osv_data)}), Commits ({len(result.commits)})"
+            f"   Sources collected: GHSA [OK], NVD {'[OK]' if result.nvd_data else '[!]'}, OSV ({len(result.osv_data)}), Commits ({len(result.commits)}), Repository {'[OK]' if result.repository_context else '[!]'}"
         )
         print(
             f"   Parsing results: GHSA {'[OK]' if result.parsed_advisory else '[!]'}, NVD {'[OK]' if parsed_nvd else '[!]'}, OSV ({len(parsed_osv)})"
         )
         print(f"   Diffs analyzed: {len(parsed_diffs)} with security pattern detection")
+        
+        if result.repository_context:
+            func_count = len(result.repository_context["vulnerable_functions"])
+            print(f"   Repository analysis: {func_count} vulnerable functions with caller context")
 
         if result.parsed_advisory:
             print(f"\n   Advisory Details:")
@@ -347,6 +485,7 @@ async def create_structured_output(
                 "nvd": result.nvd_data is not None,
                 "osv": len(result.osv_data),
                 "commits": len(result.commits),
+                "repository_context": result.repository_context is not None,
             },
             "parsing_success": {
                 "advisory_parsed": result.parsed_advisory is not None,
@@ -494,6 +633,19 @@ async def create_structured_output(
                 }
                 for commit_data in result.commits
             ],
+            "repository_context": {
+                "metadata": {
+                    "source_type": "code_analysis",
+                    "format": "Tree-sitter static analysis with call graph",
+                    "analysis_tool": "Tree-sitter + Ruby grammar",
+                },
+                "raw_content": result.repository_context,
+                "ai_ready_content": {
+                    "vulnerable_functions": result.repository_context.get("vulnerable_functions", []) if result.repository_context else [],
+                    "call_graph_stats": result.repository_context.get("call_graph_stats", {}) if result.repository_context else {},
+                    "clone_stats": result.repository_context.get("clone_stats", {}) if result.repository_context else {},
+                },
+            } if result.repository_context else None,
         },
         # Summary for AI consumption
         "ai_analysis_ready": {
@@ -522,10 +674,16 @@ async def create_structured_output(
                 }
                 for d in parsed_diffs
             ],
+            "repository_analysis": {
+                "vulnerable_functions": result.repository_context.get("vulnerable_functions", []) if result.repository_context else [],
+                "call_graph_stats": result.repository_context.get("call_graph_stats", {}) if result.repository_context else {},
+                "repository_url": result.repository_context.get("repository_url", "") if result.repository_context else "",
+            },
             "cross_references": {
                 "nvd_available": result.nvd_data is not None,
                 "osv_entries": len(result.osv_data),
                 "commit_count": len(result.commits),
+                "repository_context_available": result.repository_context is not None,
             },
         },
     }

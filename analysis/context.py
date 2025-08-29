@@ -504,20 +504,46 @@ class CodeContextExtractor:
 
     def _extract_function_name(self, result: QueryResult) -> str:
         """Extract function name from query result"""
-        # Try different capture patterns
-        for key in ["function.name", "method.name", "method.name"]:
+        # Try different capture patterns based on node type
+        if result.node_type == "method":
+            # Ruby method definition
+            if "method.name" in result.captures:
+                return result.captures["method.name"]
+        elif result.node_type == "class":
+            # Ruby class definition
+            if "class.name" in result.captures:
+                return f"class_{result.captures['class.name']}"
+        elif result.node_type == "module":
+            # Ruby module definition
+            if "module.name" in result.captures:
+                return f"module_{result.captures['module.name']}"
+        
+        # Try generic capture patterns
+        for key in ["function.name", "method.name", "class.name", "module.name"]:
             if key in result.captures:
                 return result.captures[key]
 
-        # Fallback: parse from text
+        # Fallback: parse from text based on language patterns
         lines = result.text.split("\n")
         if lines:
             first_line = lines[0].strip()
+            
+            # Ruby patterns
             if first_line.startswith("def "):
-                # Python function
-                parts = first_line.split("(")
-                if len(parts) > 0:
-                    return parts[0].replace("def ", "").strip()
+                # Ruby method: def method_name or def method_name(params)
+                parts = first_line.split("(")[0].split()
+                if len(parts) >= 2:
+                    return parts[1].strip()
+            elif first_line.startswith("class "):
+                # Ruby class: class ClassName
+                parts = first_line.split()
+                if len(parts) >= 2:
+                    return f"class_{parts[1].strip()}"
+            elif first_line.startswith("module "):
+                # Ruby module: module ModuleName
+                parts = first_line.split()
+                if len(parts) >= 2:
+                    return f"module_{parts[1].strip()}"
             elif first_line.startswith("function "):
                 # JavaScript function
                 parts = first_line.split("(")
@@ -543,14 +569,34 @@ class CodeContextExtractor:
                     for param in param_text.split(","):
                         param = param.strip()
                         if param and param != "self":
-                            # Handle type hints and default values
-                            if ":" in param:
+                            # Handle Ruby/Python type hints and default values
+                            if ":" in param and not param.startswith(":"):  # Skip Ruby symbols like :symbol
                                 param = param.split(":")[0].strip()
                             if "=" in param:
                                 param = param.split("=")[0].strip()
+                            # Handle Ruby keyword arguments
+                            if param.endswith(":"):
+                                param = param[:-1].strip()
                             param_names.append(param)
                     params.extend(param_names)
                 break  # Use first matching parameter capture
+
+        # Ruby fallback: parse parameters from first line
+        if not params and result.text:
+            first_line = result.text.split("\n")[0].strip()
+            if first_line.startswith("def ") and "(" in first_line and ")" in first_line:
+                # Extract parameters from def method_name(param1, param2)
+                param_section = first_line[first_line.find("(") + 1:first_line.find(")")]
+                if param_section.strip():
+                    for param in param_section.split(","):
+                        param = param.strip()
+                        # Handle Ruby default values and keyword args
+                        if "=" in param:
+                            param = param.split("=")[0].strip()
+                        if param.endswith(":"):
+                            param = param[:-1].strip()
+                        if param and param != "self":
+                            params.append(param)
 
         return params
 
