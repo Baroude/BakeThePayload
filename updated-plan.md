@@ -2,7 +2,7 @@
 ## Architecture & Implementation Plan (Updated)
 
 ## 1. Architecture Overview
-
+'''ascii
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           INPUT LAYER                                        │
 ├─────────────────┬──────────────────┬────────────────────────────────────────┤
@@ -92,7 +92,7 @@
 │  • Security report with confidence metrics                                   │
 │  • Iteration logs and refinement history                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
-
+'''
 ## 2. Updated Data Flow Architecture
 
 ```ascii
