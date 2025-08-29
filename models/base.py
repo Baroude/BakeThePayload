@@ -53,7 +53,7 @@ class SecurityBaseModel(BaseModel):
         use_enum_values = True
         json_encoders = {datetime: lambda v: v.isoformat(), UUID: lambda v: str(v)}
 
-    def update_timestamp(self):
+    def update_timestamp(self) -> None:
         self.updated_at = datetime.utcnow()
 
 
@@ -70,6 +70,7 @@ class Reference(SecurityBaseModel):
         if isinstance(v, str):
             if not v.startswith(("http://", "https://")):
                 raise ValueError("URL must start with http:// or https://")
+            return HttpUrl(v)
         return v
 
 

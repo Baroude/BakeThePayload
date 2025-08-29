@@ -17,12 +17,12 @@ class VersionRange(SecurityBaseModel):
         import re
 
         constraint_patterns = [
-            r"^>=?\d+(\.\d+)*",  # >=1.0.0, >1.0.0
-            r"^<=?\d+(\.\d+)*",  # <=1.0.0, <1.0.0
-            r"^~\d+(\.\d+)*",  # ~1.2.0
-            r"^\^\d+(\.\d+)*",  # ^1.2.0
-            r"^=\d+(\.\d+)*",  # =1.2.0
-            r"^\d+(\.\d+)*$",  # 1.2.0
+            r"^>=?\s*v?\d+(\.\d+)*",  # >=1.0.0, > 1.0.0, >= v1.0.0
+            r"^<=?\s*v?\d+(\.\d+)*",  # <=1.0.0, < 1.0.0, <= v1.0.0
+            r"^~\s*v?\d+(\.\d+)*",  # ~1.2.0, ~ v1.2.0
+            r"^\^\s*v?\d+(\.\d+)*",  # ^1.2.0, ^ v1.2.0
+            r"^=\s*v?\d+(\.\d+)*",  # =1.2.0, = v1.2.0
+            r"^v?\d+(\.\d+)*$",  # 1.2.0, v1.2.0
         ]
 
         if not any(re.match(pattern, v.strip()) for pattern in constraint_patterns):

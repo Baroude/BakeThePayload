@@ -68,7 +68,7 @@ class UnifiedDiffParser:
     Parser for unified diff format that extracts security-relevant changes
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.security_patterns = self._initialize_security_patterns()
 
     def _initialize_security_patterns(self) -> List[SecurityPattern]:
@@ -200,6 +200,25 @@ class UnifiedDiffParser:
                 "Removed sensitive data protection",
                 0.8,
             ),
+            # Security fixes patterns (positive patterns for fixes being applied)
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*raise.*unless.*size|length|valid",
+                "Added validation check",
+                0.8,
+            ),
+            SecurityPattern(
+                SecurityPatternType.CRYPTO_WEAKNESS,
+                r"(\+\s*).*raise.*unless.*tag\.(bytesize|length)",
+                "Added authentication tag validation",
+                0.9,
+            ),
+            SecurityPattern(
+                SecurityPatternType.AUTH_BYPASS,
+                r"(\+\s*).*raise.*unless.*(auth|valid|check)",
+                "Added security check",
+                0.7,
+            ),
         ]
 
     def parse(self, diff_content: str) -> List[DiffHunk]:
@@ -212,6 +231,14 @@ class UnifiedDiffParser:
 
         while i < len(lines):
             line = lines[i]
+
+            # Parse git diff headers (extract file from git diff line if no --- +++ headers)
+            if line.startswith("diff --git "):
+                match = re.match(r"diff --git a/(.*) b/(.*)", line)
+                if match:
+                    current_file = match.group(2)  # Use the 'b/' version (after change)
+                i += 1
+                continue
 
             # Parse file headers
             if line.startswith("--- "):
@@ -252,7 +279,9 @@ class UnifiedDiffParser:
             return filename
         return line
 
-    def _parse_hunk_header(self, line: str) -> Optional[Tuple[int, int, int, int, str]]:
+    def _parse_hunk_header(
+        self, line: str
+    ) -> Optional[Tuple[int, int, int, int, Optional[str]]]:
         """Parse hunk header like @@ -10,7 +10,6 @@ function_context"""
         match = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$", line)
         if match:
@@ -268,7 +297,7 @@ class UnifiedDiffParser:
         self,
         lines: List[str],
         file_path: str,
-        hunk_info: Tuple[int, int, int, int, str],
+        hunk_info: Tuple[int, int, int, int, Optional[str]],
     ) -> Tuple[DiffHunk, int]:
         """Parse the content of a diff hunk"""
         old_start, old_count, new_start, new_count, context = hunk_info
@@ -380,7 +409,7 @@ class UnifiedDiffParser:
 
     def parse_and_analyze(
         self, diff_content: str
-    ) -> Dict[str, Union[List[DiffHunk], List[SecurityMatch]]]:
+    ) -> Dict[str, Union[List[DiffHunk], List[SecurityMatch], Dict[str, int]]]:
         """Parse diff and detect security patterns in one operation"""
         hunks = self.parse(diff_content)
         security_matches = self.detect_security_patterns(hunks)

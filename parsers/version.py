@@ -109,7 +109,7 @@ class VersionExtractor:
     Extracts and normalizes version constraints across different ecosystems
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.ecosystem_patterns = self._initialize_ecosystem_patterns()
 
     def _initialize_ecosystem_patterns(self) -> Dict[EcosystemEnum, Dict[str, str]]:
@@ -192,8 +192,9 @@ class VersionExtractor:
         patterns = self.ecosystem_patterns.get(ecosystem, {})
 
         # Try exact match first
-        if re.match(patterns.get("exact", ""), constraint_str):
-            version = re.match(patterns["exact"], constraint_str).group(1)
+        exact_match = re.match(patterns.get("exact", ""), constraint_str)
+        if exact_match:
+            version = exact_match.group(1)
             return VersionConstraint(
                 VersionConstraintType.EXACT, version, constraint_str, ecosystem
             )
@@ -332,7 +333,7 @@ class VersionExtractor:
                 # Validate it parses correctly
                 pkg_version.parse(clean_version)
                 clean_versions.append(clean_version)
-            except Exception:
+            except (pkg_version.InvalidVersion, ValueError):
                 continue
 
         return sorted(list(set(clean_versions)))
