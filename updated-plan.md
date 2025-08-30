@@ -3,96 +3,97 @@
 
 ## 1. Architecture Overview
 ```ascii
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           INPUT LAYER                                        │
-├─────────────────┬──────────────────┬────────────────────────────────────────┤
-│  GitHub APIs    │  Advisory DBs    │        File System                     │
-│  - Commits      │  - GHSA          │        - Local patches                │
-│  - Releases     │  - NVD           │        - Cached data                  │
-│  - Diffs        │  - OSV           │        - Previous analyses            │
-│  - **Repos**    │                  │                                        │
-└────────┬────────┴────────┬─────────┴────────┬───────────────────────────────┘
-         │                 │                  │
-         ▼                 ▼                  ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      NORMALIZATION LAYER (Collector Agent)                   │
-│ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐   │
-│ │ Diff Parser  │ │Advisory Parse│ │Version Extract│ │**Repo Manager**  │   │
-│ │(unified fmt) │ │(JSON→Pydantic│ │ (semver)     │ │- Sparse checkout │   │
-│ └──────────────┘ └──────────────┘ └──────────────┘ │- File extraction │   │
-│                                                      │- Cleanup policy  │   │
-│                                                      └──────────────────┘   │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         TYPED SECURITY MODEL (Pydantic)                      │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │ Core Models:                                                        │    │
-│  │ • VulnerabilityReport(id, severity, description, references...)     │    │
-│  │ • AffectedArtifact(name, versions, file_paths...)                   │    │
-│  │ • **CodeContext(full_function_body, call_sites, data_flows)**      │    │
-│  │ • ExploitFlow(nodes: List[ExploitNode], edges: List[FlowEdge])      │    │
-│  │ • Impact(confidentiality, integrity, availability, scope)           │    │
-│  │ • Trace(advisory_id, commit_hash, file_path, line_spans)            │    │
-│  │ • RiskAssessment(cvss_score, confidence, factors, reasoning)        │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                 **ANALYSIS ENGINE (Analyst Agent) - UPDATED**                │
-│ ┌───────────────────────────────────────────────────────────────────────┐ │
-│ │ **Code Analysis Toolkit:**      │ **Outputs:**                        │ │
-│ │ • Tree-sitter Parser (Primary)  │ • Full function extraction          │ │
-│ │   - AST generation               │ • Call graph generation             │ │
-│ │   - Symbol resolution            │ • Data-flow paths                   │ │
-│ │   - Query-based extraction      │ • Usage context                     │ │
-│ │ • CodeQL (Optional/Heavy)       │ • Vulnerability patterns            │ │
-│ │   - Semantic analysis            │ • Confidence scoring                │ │
-│ │   - Taint tracking               │                                     │ │
-│ └───────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      VALIDATION LAYER (Reviewer Agent)                       │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ • Schema validation        • Contradiction detection                  │  │
-│  │ • Reference integrity      • Severity consistency check               │  │
-│  │ • Evidence verification    • Gap analysis & flagging                  │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    **GENERATION LAYER (UPDATED)**                            │
-├──────────────────────────────┬───────────────────────────────────────────────┤
-│     Developer1 Agent         │       **Developer2 Agent + Tester Loop**      │
-│  (Vulnerable App Generator)  │         (Iterative Exploit Generator)         │
-│  • Framework selection        │  ┌─────────────────────────────────┐         │
-│  • Vulnerable code synthesis  │  │ 1. Initial exploit generation  │         │
-│  • Environment setup          │  │ 2. Automated testing           │         │
-│  • Containerization           │  │ 3. Error analysis              │◄────┐    │
-│                              │  │ 4. Refinement/retry            │     │    │
-│                              │  │ 5. Human feedback (optional)   │     │    │
-│                              │  └─────────────────────────────────┘     │    │
-│                              │           │                              │    │
-│                              │           ▼                              │    │
-│                              │  ┌─────────────────────────────────┐     │    │
-│                              │  │   Exploit Tester Component      │     │    │
-│                              │  │   • Execute against vuln app    │     │    │
-│                              │  │   • Capture success/failure     │─────┘    │
-│                              │  │   • Extract error messages      │          │
-│                              │  │   • Verify exploitation impact   │          │
-│                              │  └─────────────────────────────────┘          │
-└──────────────────────────────┴───────────────────────────────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           OUTPUT ARTIFACTS                                   │
-│  • Vulnerable application (containerized)                                    │
-│  • Working exploit script with documentation                                 │
-│  • Test harness & validation suite                                          │
-│  • Security report with confidence metrics                                   │
-│  • Iteration logs and refinement history                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│                                     INPUT LAYER                                       │
+├───────────────────────────┬───────────────────────────┬───────────────────────────────┤
+│ GitHub APIs               │ Advisory DBs              │ File System                   │
+│ - Commits                 │ - GHSA                    │ - Local patches               │
+│ - Releases                │ - NVD                     │ - Cached data                 │
+│ - Diffs                   │ - OSV                     │ - Previous analyses           │
+│ - Repos                   │                           │                               │
+└───────────────┬───────────┴───────────────┬───────────┴───────────────┬───────────────┘
+                │                           │                           │
+                ▼                           ▼                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                         NORMALIZATION LAYER (Collector Agent)                          │
+│ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ ┌──────────────────┐ │
+│ │ Diff Parser       │ │ Advisory Parser   │ │ Version Extractor │ │ Repo Manager     │ │
+│ │ (unified format)  │ │ (JSON → Pydantic) │ │ (semver)          │ │ - Sparse checkout│ │
+│ └───────────────────┘ └───────────────────┘ └───────────────────┘ │ - File extraction│ │
+│                                                                   │ - Cleanup policy │ │
+│                                                                   └──────────────────┘ │
+└───────────────────────────────┬────────────────────────────────────────────────────────┘
+                                ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                          TYPED SECURITY MODEL (Pydantic)                               │
+│ ┌────────────────────────────────────────────────────────────────────────────────────┐ │
+│ │ Core Models:                                                                       │ │
+│ │ • VulnerabilityReport(id, severity, description, references...)                    │ │
+│ │ • AffectedArtifact(name, versions, file_paths...)                                  │ │
+│ │ • CodeContext(full_function_body, call_sites, data_flows)                          │ │
+│ │ • ExploitFlow(nodes: List[ExploitNode], edges: List[FlowEdge])                     │ │
+│ │ • Impact(confidentiality, integrity, availability, scope)                          │ │
+│ │ • Trace(advisory_id, commit_hash, file_path, line_spans)                           │ │
+│ │ • RiskAssessment(cvss_score, confidence, factors, reasoning)                       │ │
+│ └────────────────────────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────┬────────────────────────────────────────────────────────┘
+                                ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                     ANALYSIS ENGINE (Analyst Agent) — UPDATED                          │
+│ ┌────────────────────────────────────────────────────────────────────────────────────┐ │
+│ │ Code Analysis Toolkit:                         Outputs:                            │ │
+│ │ • Tree-sitter Parser (primary)                 • Full function extraction          │ │
+│ │   - AST generation                             • Call graph generation             │ │
+│ │   - Symbol resolution                          • Data-flow paths                   │ │
+│ │   - Query-based extraction                     • Usage context                     │ │
+│ │ • CodeQL (optional/heavy)                      • Vulnerability patterns            │ │
+│ │   - Semantic analysis                          • Confidence scoring                │ │
+│ │   - Taint tracking                                                                 │ │
+│ └────────────────────────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────┬────────────────────────────────────────────────────────┘
+                                ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                         VALIDATION LAYER (Reviewer Agent)                              │
+│ ┌────────────────────────────────────────────────────────────────────────────────────┐ │
+│ │ • Schema validation            • Contradiction detection                           │ │
+│ │ • Reference integrity          • Severity consistency check                        │ │
+│ │ • Evidence verification        • Gap analysis & flagging                           │ │
+│ └────────────────────────────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────┬────────────────────────────────────────────────────────┘
+                                ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                             GENERATION LAYER — UPDATED                                 │
+├─────────────────────────────────────────┬──────────────────────────────────────────────┤
+│ Developer1 Agent                        │ Developer2 Agent + Tester Loop               │
+│ (Vulnerable App Generator)              │ (Iterative Exploit Generator)                │
+│ • Framework selection                   │ ┌──────────────────────────────────────────┐ │
+│ • Vulnerable code synthesis             │ │ 1. Initial exploit generation            │ │
+│ • Environment setup                     │ │ 2. Automated testing                     │ │
+│ • Containerization                      │ │ 3. Error analysis                        │ │
+│                                         │ │ 4. Refinement / retry                    │ │
+│                                         │ │ 5. Human feedback (optional)             │ │
+│                                         │ └──────────────────────────────────────────┘ │
+│                                         │              │                               │
+│                                         │              ▼                               │
+│                                         │ ┌──────────────────────────────────────────┐ │
+│                                         │ │ Exploit Tester Component                 │ │
+│                                         │ │ • Execute against vuln app               │ │
+│                                         │ │ • Capture success / failure              │ │
+│                                         │ │ • Extract error messages                 │ │
+│                                         │ │ • Verify exploitation impact             │ │
+│                                         │ └──────────────────────────────────────────┘ │
+└─────────────────────────────────────────┴──────────────────────────────────────────────┘
+                                ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   OUTPUT ARTIFACTS                                     │
+│ • Vulnerable application (containerized)                                               │
+│ • Working exploit script with documentation                                            │
+│ • Test harness & validation suite                                                      │
+│ • Security report with confidence metrics                                              │
+│ • Iteration logs and refinement history                                                │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
 ## 2. Updated Data Flow Architecture
 
 ```ascii
@@ -124,22 +125,22 @@
 - Direct AST access for context extraction
 
 **Implementation approach:**
-The CodeContextExtractor will use Tree-sitter to parse source files and extract vulnerable function bodies, identify call sites, and gather modification context. The system will:
-1. Parse files using language-specific Tree-sitter grammars
-2. Query for function definitions using Tree-sitter's query language
-3. Extract full function bodies from the AST
-4. Locate all call sites to vulnerable functions
-5. Capture surrounding context (10 lines around modifications)
-6. Return structured data including function bodies, call locations, and data flow hints
+The CodeContextExtractor uses a hybrid static query + AI selection approach:
+1. **Static Query Library**: Pre-built Tree-sitter queries per language (function definitions, calls, assignments, classes)
+2. **AI Query Selection**: Analyst Agent selects appropriate queries based on vulnerability type and analysis needs
+3. **Grammar Management**: Bundle Python, JavaScript, Java grammars initially, expand as needed
+4. **Context Processing**: AI determines optimal extraction depth from Tree-sitter query results
+5. **Full Repository Analysis**: Complete codebase parsing to support comprehensive call graph generation
+6. **Dynamic Adaptation**: AI processes Tree-sitter results to focus on relevant code paths
 
 ### 3.2 Simplified Call Graph Generation
 **Approach:** Use Tree-sitter queries combined with symbol resolution to build lightweight call graphs without requiring full semantic analysis.
 
 The CallGraphBuilder will:
-- Find direct callers through pattern matching with Tree-sitter
-- Extract called functions by parsing function bodies
-- Implement limited depth traversal (max depth 3) to avoid explosion
-- Return structured call graph data including callers, callees, traversal depth, and truncation status
+- Analyze full codebase using Tree-sitter static queries
+- Build comprehensive caller/callee relationships across entire repository
+- Monitor performance and adjust scope based on repository complexity
+- Return structured call graph data with AI-determined relevance scoring
 
 ### 3.3 CodeQL as Optional Enhancement
 **When to use CodeQL:**
@@ -157,14 +158,15 @@ The OptionalCodeQLAnalyzer will selectively apply CodeQL only when necessary, ba
 
 ### 3.4 Repository Management Strategy
 
-**Sparse Checkout & Cleanup:**
-The RepositoryManager implements minimal disk footprint management through:
-- Sparse checkout initialization for selective file retrieval
-- Shallow clone with limited commit history
-- Checkout of only affected files and their dependencies
-- Temporary directory usage with automatic cleanup
-- Extract-and-dispose pattern where repositories are cloned, analyzed, and immediately removed
-- No long-term storage of cloned repositories
+**Full Repository & Cleanup:**
+The RepositoryManager implements comprehensive analysis support through:
+- Full repository clone for complete call graph generation
+- 100 commits before/after patch for temporal context
+- 5GB size limit with fast-fail on oversized repositories
+- Post-clone filtering to remove binaries, documentation, tests
+- One vulnerability = one repository clone pattern
+- Extract-and-dispose after complete analysis pipeline
+- Public repositories only (no authentication required)
 
 ## 4. Iterative POC Development System
 
@@ -199,10 +201,12 @@ The IterativeExploitDeveloper manages the iterative refinement process for explo
 The ExploitTester provides automated testing with sandboxed execution:
 
 **Testing Infrastructure:**
-- Docker-based isolation for safe execution
+- Docker-based isolation: One container per vulnerable application
+- Minimal runtime dependencies only (no development tools)
+- Localhost-only networking for security
+- Vulnerability-specific success detection and validation
 - 30-second timeout per test attempt
-- Comprehensive output capture (stdout, stderr, network traffic)
-- Impact verification based on vulnerability type
+- Minimal vulnerable applications generated from vulnerability analysis
 
 **Success Criteria by Vulnerability Type:**
 - **RCE**: Command execution verified through output or side effects
@@ -279,19 +283,26 @@ The system uses a **hybrid approach** combining structured data for consistency 
 | Task Type | Structured Data | Raw Diff | Function Context | Raw Advisory | Token Est. | Model Size |
 |-----------|----------------|----------|------------------|--------------|------------|------------|
 | Classification | ✅ Required | ❌ Optional | ❌ Optional | ❌ Rare | <1K | Small |
-| Vulnerability Analysis | ✅ Required | ✅ Required | ✅ Required | ⚠️ If confidence <0.7 | 3-5K | Medium |
-| Exploit Flow Generation | ✅ Required | ✅ Required | ✅ Required | ⚠️ If needed | 5-7K | Medium |
-| Code Generation | ✅ Required | ✅ Required | ✅ Required | ⚠️ If needed | 6-10K | Large |
-| Exploit Development | ✅ Required | ✅ Required | ✅ Required | ✅ Often needed | 8-12K | Large |
-| Exploit Refinement | ✅ Error logs | ✅ Previous attempt | ✅ Target context | ❌ Rarely | 4-6K | Medium |
+| Vulnerability Analysis | ✅ Required | ✅ Required | ✅ Required (Full) | ⚠️ If confidence <0.7 or CLI flag | 3-5K | Medium |
+| Exploit Flow Generation | ✅ Required | ✅ Required | ✅ Required (Full) | ⚠️ If needed or CLI flag | 5-7K | Medium |
+| Code Generation | ✅ Required | ✅ Required | ✅ Required (Full) | ⚠️ If needed or CLI flag | 6-10K | Large |
+| Exploit Development | ✅ Required | ✅ Required | ✅ Required (Full) | ✅ Often needed or CLI flag | 8-12K | Large |
+| Exploit Refinement | ✅ Error logs | ✅ Previous attempt | ✅ Target context (Full) | ❌ Rarely | 4-6K | Medium |
 
 ### Context Optimization Rules
 1. **Always provide structured data** for validation and consistency
 2. **Always include raw diff** for exploit-related tasks
-3. **Always include Tree-sitter extracted function context** for code understanding
-4. **Include raw advisory** when confidence scores are low (<0.7)
+3. **Always include Tree-sitter extracted function context** (complete source, not previews) for code understanding
+4. **Include raw advisory** when confidence scores are low (<0.7) or CLI flag `--include-raw-advisory` is set
 5. **For refinement iterations**, focus on error analysis and specific failure points
 6. **Cache intelligently** based on structured data fingerprints
+
+### Enhanced Context Generation Features ✅ COMPLETED
+- **Full Function Source**: Complete function implementations instead of 200-character previews
+- **Raw Diff Integration**: Always included for exploit generation capability
+- **Conditional Raw Advisory**: CLI flag `--include-raw-advisory` controls inclusion (14.7KB vs 20.1KB)
+- **Enhanced Call Graph Stats**: Complete statistics including relationships, calls, confidence scores
+- **Multi-Language Support**: Ruby and JavaScript analysis with full context extraction
 
 ### OpenRouter Model Selection by Agent
 
@@ -417,10 +428,12 @@ The system uses a **hybrid approach** combining structured data for consistency 
 ### 7.3 Operational Constraints
 
 **Repository Management:**
-- Max 10GB total repository cache
-- Auto-cleanup after 1 hour
-- Sparse checkout by default
-- Extract-and-dispose pattern
+- 5GB max per repository with fast-fail
+- Full repository clone for comprehensive call graph
+- 100 commits before/after patch for temporal context
+- Extract-and-dispose after complete analysis pipeline
+- Manual intervention for failures during development
+- Checksum validation for data integrity
 
 **Iteration Loop Controls:**
 - Hard stop at 5 iterations

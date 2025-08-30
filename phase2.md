@@ -77,6 +77,43 @@ Disk Cache: Compressed storage (500MB)
   - Test integration: `test_github_advisory.py` demonstrates full repository analysis workflow
   - Ruby parsing: Enhanced function name extraction for methods, classes, modules
 
+### 2.1.6 Context Optimization Pipeline (Day 5) ✅ COMPLETED
+- **AI Context Optimization**: Reduce data bloat while preserving essential vulnerability information for exploit generation
+- **Smart Function Filtering**: Remove module/class definitions, focus on actual vulnerable methods
+- **Raw Diff Integration**: Always include complete diff content for exploit generation tasks
+- **Full Function Context**: Include complete function source code (not truncated previews)
+- **Conditional Raw Advisory**: Optional raw advisory inclusion via CLI flag for low confidence cases
+- **Language-Agnostic Structure**: Foundation for multi-language context optimization
+- **Token Efficiency**: Optimize for AI consumption while maintaining exploit generation capability
+
+  Implemented:
+  - Enhanced context optimizer: Includes raw diffs + full function context for exploit generation
+  - CLI flag `--include-raw-advisory` for conditional raw advisory inclusion
+  - Full function source preservation (not 200-char previews) for complete code understanding
+  - Enhanced security patterns with file location and code context
+  - Function filtering: Exclude modules/classes, focus on methods with callers
+  - Code context extraction: Show ±2 lines around security issues with diff markers
+  - Dual output: Full collection data + AI-optimized context with exploit-ready data
+  - Size optimization: 44-62% reduction while preserving essential exploit generation data
+
+### 2.1.7 Main Execution Flow Generalization (Day 6) ✅ COMPLETED
+- **Universal GHSA Analysis**: Create main.py to generalize functionality for any GHSA advisory
+- **Multi-Language Support**: Extract language detection and Tree-sitter grammar selection
+- **Configurable Pipeline**: Command-line interface for advisory ID input and output format selection
+- **Reusable Components**: Separate concerns for data collection, repository analysis, and context optimization
+- **Error Handling**: Robust handling of different repository types, languages, and advisory formats
+- **Output Standardization**: Consistent JSON output format for any GHSA advisory analysis
+
+  Implemented:
+  - `main.py`: Complete CLI interface with VulnerabilityAnalyzer class
+  - Language detection: Support for 12+ programming languages (Ruby, Python, JavaScript, Java, PHP, Go, Rust, C/C++, C#, Swift, Kotlin, Scala)
+  - CLI arguments: GHSA ID input, output directory, optional repository analysis skip, conditional raw advisory inclusion
+  - GHSA ID validation: Regex pattern matching for proper format
+  - Enhanced context generation: Raw diffs + full function context for exploit generation capability
+  - Modular pipeline: Reusable components extracted from test script
+  - Error handling: Comprehensive validation and graceful failure modes
+  - Tests: `tests/test_main_execution.py` with 13 tests using real data validation
+
 ## 2.2 Analyst Agent (Week 4) ⬜ NOT STARTED
 
 ### 2.2.1 Security Pattern Library (Day 1) 🟡 PARTIAL
