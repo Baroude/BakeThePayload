@@ -16,7 +16,9 @@
       "Bash(mkdir:*)",
       "Bash(python test_github_advisory.py:*)",
       "Bash(python:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

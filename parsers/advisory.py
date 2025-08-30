@@ -580,7 +580,7 @@ class MultiFormatAdvisoryParser:
         """Extract specific identifier type from identifiers list"""
         for ident in identifiers:
             if ident.get("type") == id_type:
-                return ident.get("value", "Unknown")
+                return str(ident.get("value", "Unknown"))
         return "Unknown"
 
     def _extract_references(
