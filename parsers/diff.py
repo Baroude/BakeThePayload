@@ -60,6 +60,7 @@ class SecurityMatch(BaseModel):
     line_content: str
     confidence: float
     description: str
+    file_path: str
     context: Optional[str] = Field(default=None)
 
 
@@ -72,8 +73,9 @@ class UnifiedDiffParser:
         self.security_patterns = self._initialize_security_patterns()
 
     def _initialize_security_patterns(self) -> List[SecurityPattern]:
-        """Initialize security pattern library"""
+        """Initialize comprehensive multi-language security pattern library"""
         return [
+            # === AUTHENTICATION & AUTHORIZATION PATTERNS ===
             # Authentication bypass patterns
             SecurityPattern(
                 SecurityPatternType.AUTH_BYPASS,
@@ -88,7 +90,15 @@ class UnifiedDiffParser:
                 "Removed authorization check",
                 0.9,
             ),
-            # Input validation patterns
+            SecurityPattern(
+                SecurityPatternType.AUTH_BYPASS,
+                r"(-\s*).*(assert|require|check).*(auth|permission|role)",
+                "Removed authorization assertion",
+                0.8,
+            ),
+            
+            # === INPUT VALIDATION PATTERNS ===
+            # Generic validation patterns
             SecurityPattern(
                 SecurityPatternType.INPUT_VALIDATION,
                 r"(-\s*)(validate|sanitize|escape|clean).*\(",
@@ -101,7 +111,46 @@ class UnifiedDiffParser:
                 "Removed type validation",
                 0.6,
             ),
-            # SQL injection patterns
+            # Character/Unicode validation patterns (JavaScript, Python, Java)
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*(charCode|codePoint|ord).*>\s*\d+",
+                "Added character code validation",
+                0.8,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(-\s*).*(charCode|codePoint|ord).*>\s*\d+",
+                "Removed character code validation",
+                0.9,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*if.*\.length\s*[><=]",
+                "Added length validation",
+                0.7,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(-\s*).*if.*\.length\s*[><=]",
+                "Removed length validation",
+                0.8,
+            ),
+            # Type checking patterns
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*(isinstance|typeof|Type\.|is_a\?)",
+                "Added type checking",
+                0.6,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(-\s*).*(isinstance|typeof|Type\.|is_a\?)",
+                "Removed type checking",
+                0.7,
+            ),
+            
+            # === SQL INJECTION PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.SQL_INJECTION,
                 r'(\+\s*).*\+.*["\'].*SELECT|INSERT|UPDATE|DELETE',
@@ -114,7 +163,14 @@ class UnifiedDiffParser:
                 "Removed SQL parameterization",
                 0.9,
             ),
-            # XSS patterns
+            SecurityPattern(
+                SecurityPatternType.SQL_INJECTION,
+                r"(\+\s*).*(query|execute).*\+.*user|input",
+                "Added unsafe SQL construction",
+                0.7,
+            ),
+            
+            # === XSS PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.XSS,
                 r"(-\s*).*escape|sanitize.*html",
@@ -127,7 +183,14 @@ class UnifiedDiffParser:
                 "Added direct HTML injection",
                 0.7,
             ),
-            # Deserialization patterns
+            SecurityPattern(
+                SecurityPatternType.XSS,
+                r"(-\s*).*(encode|escape).*(html|xml|url)",
+                "Removed encoding/escaping",
+                0.8,
+            ),
+            
+            # === DESERIALIZATION PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.DESERIALIZATION,
                 r"(-\s*).*whitelist|allowlist.*deserial",
@@ -140,7 +203,14 @@ class UnifiedDiffParser:
                 "Added unsafe deserialization",
                 0.8,
             ),
-            # Buffer overflow patterns
+            SecurityPattern(
+                SecurityPatternType.DESERIALIZATION,
+                r"(\+\s*).*(eval|exec|Function).*\(",
+                "Added code execution",
+                0.9,
+            ),
+            
+            # === BUFFER OVERFLOW PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.BUFFER_OVERFLOW,
                 r"(-\s*).*bounds.*check|length.*check",
@@ -153,7 +223,14 @@ class UnifiedDiffParser:
                 "Added unsafe string function",
                 0.8,
             ),
-            # Cryptographic weakness patterns
+            SecurityPattern(
+                SecurityPatternType.BUFFER_OVERFLOW,
+                r"(-\s*).*(malloc|alloc).*size.*check",
+                "Removed allocation size validation",
+                0.8,
+            ),
+            
+            # === CRYPTOGRAPHIC WEAKNESS PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.CRYPTO_WEAKNESS,
                 r"(-\s*).*AES|RSA.*[0-9]{3,4}",
@@ -166,7 +243,20 @@ class UnifiedDiffParser:
                 "Added weak hash function",
                 0.9,
             ),
-            # TOCTOU patterns
+            SecurityPattern(
+                SecurityPatternType.CRYPTO_WEAKNESS,
+                r"(-\s*).*(verify|check).*(signature|hash|tag)",
+                "Removed cryptographic verification",
+                0.9,
+            ),
+            SecurityPattern(
+                SecurityPatternType.CRYPTO_WEAKNESS,
+                r"(\+\s*).*(verify|check).*(signature|hash|tag)",
+                "Added cryptographic verification",
+                0.8,
+            ),
+            
+            # === TOCTOU PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.TOCTOU,
                 r"(-\s*).*lock|mutex|atomic",
@@ -174,7 +264,14 @@ class UnifiedDiffParser:
                 0.6,
                 context_required=True,
             ),
-            # Privilege escalation patterns
+            SecurityPattern(
+                SecurityPatternType.TOCTOU,
+                r"(\+\s*).*(synchronized|lock|mutex)",
+                "Added concurrency protection",
+                0.6,
+            ),
+            
+            # === PRIVILEGE ESCALATION PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.PRIVILEGE_ESCALATION,
                 r"(-\s*).*admin|root.*check",
@@ -187,7 +284,14 @@ class UnifiedDiffParser:
                 "Added privilege elevation",
                 0.7,
             ),
-            # Information disclosure patterns
+            SecurityPattern(
+                SecurityPatternType.PRIVILEGE_ESCALATION,
+                r"(-\s*).*(isAdmin|hasRole|checkPermission)",
+                "Removed permission check",
+                0.8,
+            ),
+            
+            # === INFORMATION DISCLOSURE PATTERNS ===
             SecurityPattern(
                 SecurityPatternType.INFORMATION_DISCLOSURE,
                 r"(\+\s*).*print|log|console.*password|secret|key",
@@ -200,7 +304,54 @@ class UnifiedDiffParser:
                 "Removed sensitive data protection",
                 0.8,
             ),
-            # Security fixes patterns (positive patterns for fixes being applied)
+            SecurityPattern(
+                SecurityPatternType.INFORMATION_DISCLOSURE,
+                r"(\+\s*).*(error|exception).*stack.*trace",
+                "Added verbose error information",
+                0.6,
+            ),
+            
+            # === MULTI-LANGUAGE ERROR HANDLING PATTERNS ===
+            # JavaScript/TypeScript error handling
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*throw\s+new\s+(Error|TypeError).*invalid|invalid.*char",
+                "Added input validation error",
+                0.8,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(-\s*).*throw\s+new\s+(Error|TypeError).*invalid|invalid.*char",
+                "Removed input validation error",
+                0.9,
+            ),
+            # Python error handling
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*raise\s+(ValueError|TypeError).*invalid",
+                "Added input validation error",
+                0.8,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(-\s*).*raise\s+(ValueError|TypeError).*invalid",
+                "Removed input validation error",
+                0.9,
+            ),
+            # Java error handling
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*throw\s+new\s+(IllegalArgument|Invalid).*Exception",
+                "Added input validation error",
+                0.8,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(-\s*).*throw\s+new\s+(IllegalArgument|Invalid).*Exception",
+                "Removed input validation error",
+                0.9,
+            ),
+            # Ruby error handling (existing patterns)
             SecurityPattern(
                 SecurityPatternType.INPUT_VALIDATION,
                 r"(\+\s*).*raise.*unless.*size|length|valid",
@@ -218,6 +369,21 @@ class UnifiedDiffParser:
                 r"(\+\s*).*raise.*unless.*(auth|valid|check)",
                 "Added security check",
                 0.7,
+            ),
+            
+            # === LANGUAGE-SPECIFIC VULNERABILITY PATTERNS ===
+            # JavaScript Unicode/Character validation (specific patterns)
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(\+\s*).*charCodeAt.*>\s*\d+",
+                "Added character code validation",
+                0.9,
+            ),
+            SecurityPattern(
+                SecurityPatternType.INPUT_VALIDATION,
+                r"(-\s*).*charCodeAt.*>\s*\d+",
+                "Removed character code validation",
+                0.9,
             ),
         ]
 
@@ -366,6 +532,7 @@ class UnifiedDiffParser:
                                     line_content=content,
                                     confidence=pattern.confidence,
                                     description=pattern.description,
+                                    file_path=hunk.file_path,
                                     context=context,
                                 )
                             )
@@ -388,6 +555,7 @@ class UnifiedDiffParser:
                                     line_content=content,
                                     confidence=pattern.confidence,
                                     description=pattern.description,
+                                    file_path=hunk.file_path,
                                     context=context,
                                 )
                             )
