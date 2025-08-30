@@ -8,10 +8,11 @@ from typing import Any, Dict, List, Optional, Set
 
 import aiohttp
 
+from integration.repo import CloneResult, CommitHistory, DiffContext, RepositoryManager
+
 from .adapters import FormatAdapter
 from .deduplication import Deduplicator
 from .rate_limiter import APIRateLimiter
-from integration.repo import RepositoryManager
 
 
 class DataSourceManager:
@@ -34,11 +35,10 @@ class DataSourceManager:
         self.advisory_source: Optional[AdvisoryDataSource] = None
         self.filesystem_source: Optional[FileSystemDataSource] = None
         self.webhook_source: Optional[WebhookDataSource] = None
-        
+
         # Repository manager
         self.repository_manager = RepositoryManager(
-            base_path=repo_base_path or Path.cwd() / "temp_repos",
-            max_size_gb=5.0
+            base_path=repo_base_path or Path.cwd() / "temp_repos", max_size_gb=5.0
         )
 
     async def initialize(self) -> None:
@@ -97,25 +97,37 @@ class DataSourceManager:
 
         return results
 
-    async def clone_repository(self, repo_url: str):
+    async def clone_repository(self, repo_url: str) -> CloneResult:
         """Clone repository using repository manager"""
         return await self.repository_manager.clone_repository(repo_url)
 
-    async def get_commit_history(self, repo_path: Path, patch_commit: str, context_commits: int = 100):
+    async def get_commit_history(
+        self, repo_path: Path, patch_commit: str, context_commits: int = 100
+    ) -> CommitHistory:
         """Get commit history with context using repository manager"""
         return await self.repository_manager.get_commit_history(
             repo_path, patch_commit, context_commits
         )
 
-    async def extract_full_context(self, repo_path: Path, diff_content: str, file_path: str, line_numbers: List[int]):
+    async def extract_full_context(
+        self,
+        repo_path: Path,
+        diff_content: str,
+        file_path: str,
+        line_numbers: List[int],
+    ) -> DiffContext:
         """Extract full function context using repository manager"""
         return await self.repository_manager.extract_full_context(
             repo_path, diff_content, file_path, line_numbers
         )
 
-    async def map_diff_to_functions(self, repo_path: Path, diff_content: str):
+    async def map_diff_to_functions(
+        self, repo_path: Path, diff_content: str
+    ) -> List[DiffContext]:
         """Map diff hunks to functions using repository manager"""
-        return await self.repository_manager.map_diff_to_functions(repo_path, diff_content)
+        return await self.repository_manager.map_diff_to_functions(
+            repo_path, diff_content
+        )
 
     async def cleanup_repository(self, repo_id: str) -> bool:
         """Cleanup repository after analysis pipeline completion"""
@@ -186,6 +198,85 @@ class GitHubDataSource:
             return response.get("items", [])  # type: ignore[no-any-return]
 
         return []
+
+    def extract_github_urls(self, ghsa_data: Dict[str, Any]) -> List[str]:
+        """Extract GitHub commit and pull request URLs from GHSA data."""
+        commit_urls = []
+        references = ghsa_data.get("references", [])
+
+        for ref in references:
+            if isinstance(ref, str):
+                url = ref
+            elif isinstance(ref, dict):
+                url = ref.get("url", "")
+            else:
+                continue
+
+            if "github.com" in url and ("/commit/" in url or "/pull/" in url):
+                commit_urls.append(url)
+
+        return commit_urls
+
+    async def fetch_commit_data(self, commit_url: str) -> Optional[Dict[str, Any]]:
+        """Fetch commit data and diff from GitHub (handles both commits and pull requests)"""
+        try:
+            headers = {
+                "Authorization": f"token {self.api_token}",
+                "Accept": "application/vnd.github.v3+json",
+            }
+            
+            if "/pull/" in commit_url:
+                # Handle pull request URLs
+                parts = commit_url.replace("https://github.com/", "").split("/")
+                if len(parts) >= 4:
+                    owner, repo, pr_number = parts[0], parts[1], parts[3]
+                    
+                    # Fetch PR commits
+                    commits_api_url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}/commits"
+                    pr_commits = await self.http_client.get(commits_api_url, headers=headers)
+                    
+                    if pr_commits and len(pr_commits) > 0:
+                        # Use the last commit in the PR (usually the fix)
+                        last_commit = pr_commits[-1]
+                        sha = last_commit["sha"]
+                        
+                        # Fetch the actual commit data
+                        commit_api_url = f"{self.base_url}/repos/{owner}/{repo}/commits/{sha}"
+                        commit_data = await self.http_client.get(commit_api_url, headers=headers)
+                        
+                        return self._build_commit_response(commit_data)
+                        
+            elif "/commit/" in commit_url:
+                # Handle direct commit URLs
+                parts = commit_url.replace("https://github.com/", "").split("/")
+                if len(parts) >= 3:
+                    owner, repo, sha = parts[0], parts[1], parts[3]
+                    api_url = f"{self.base_url}/repos/{owner}/{repo}/commits/{sha}"
+                    
+                    commit_data = await self.http_client.get(api_url, headers=headers)
+                    return self._build_commit_response(commit_data)
+                    
+        except Exception as e:
+            print(f"   [!] Failed to fetch commit {commit_url}: {e}")
+            return None
+
+        return None
+
+    def _build_commit_response(self, commit_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Build standardized commit response with diff data."""
+        # Get patch data
+        diff_text = ""
+        if "files" in commit_data:
+            patches = []
+            for file_info in commit_data["files"]:
+                if "patch" in file_info:
+                    patches.append(
+                        f"diff --git a/{file_info['filename']} b/{file_info['filename']}"
+                    )
+                    patches.append(file_info["patch"])
+            diff_text = "\n".join(patches)
+
+        return {"commit": commit_data, "diff": diff_text}
 
     async def collect_security_advisories(self, repo: str) -> List[Dict[str, Any]]:
         """Collect security advisories for repository."""
@@ -285,7 +376,8 @@ class AdvisoryDataSource:
             # Extract data from nested structure if present
             if isinstance(response, dict) and "data" in response:
                 return response["data"].get("securityAdvisory")  # type: ignore[no-any-return]
-            return response
+            # Ensure we only return dict or None
+            return response if isinstance(response, dict) else None
 
         return None
 

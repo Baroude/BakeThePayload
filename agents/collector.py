@@ -136,7 +136,12 @@ class AsyncHTTPClient:
                 for result in results
                 if result is not None and not isinstance(result, BaseException)
             ]
-        return list(results)
+        # Filter out None and BaseException types to match return type
+        return [
+            result
+            for result in results
+            if result is not None and not isinstance(result, BaseException)
+        ]
 
     async def close(self) -> None:
         """Close the HTTP session and connector."""
